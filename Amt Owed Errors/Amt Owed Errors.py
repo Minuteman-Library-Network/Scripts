@@ -22,12 +22,13 @@ from email.utils import formatdate
 from email import encoders
 from datetime import date
 
+#function takes a sql query as a parameter, connects to a database and returns the results
 def run_query(query):
-    # read config file with Sierra login credentials
+    # read config file with database login details
     config = configparser.ConfigParser()
-    config.read('C:\\Creds\\config.ini')
+    config.read('C:\\Scripts\\Creds\\config.ini')
 
-    # Connecting to Sierra PostgreSQL database
+    # Connecting to PostgreSQL database
     try:
         conn = psycopg2.connect(config["sql"]["connection_string"])
     except psycopg2.Error as e:
@@ -36,48 +37,51 @@ def run_query(query):
     # Opening a session and querying the database
     cursor = conn.cursor()
     cursor.execute(query)
-    # For now, just storing the data in a variable. We'll use it later.
+    # Storing the results in a variable. We'll use it later.
     rows = cursor.fetchall()
-    # Gather column headers, which are not included in the cursor.fetchall() 
+    # Gather column headers, which are not included in cursor.fetchall() and store in another variable 
     columns = [i[0] for i in cursor.description]
+    #close database connection
     conn.close()
+    #return variables containing query results and column headers   
     return rows, columns
 
+#function takes the results of a query and converts them to a csv file
 def write_csv(query_results, headers):
-    
+    #provide a name for the csv file and save the file to a variable
     csvfile = 'amt_owed_errors{}.csv'.format(date.today())
     
+    #open csvfile in write mode and add a row to it for the headers and each line of query_results
     with open(csvfile,'w', encoding='utf-8', newline='') as tempFile:
         myFile = csv.writer(tempFile, delimiter=',')
         myFile.writerow(headers)
         myFile.writerows(query_results)
     tempFile.close()
-    
+    #return variable containing the newly created csv file
     return csvfile
 
+#function takes a file as a parameter and attaches that file to an outgoing email
 def send_email(attachment):
-    # read config file with Sierra login credentials
+    # read config file with credentials for email account
     config = configparser.ConfigParser()
-    config.read('C:\\Creds\\config.ini')
+    config.read('C:\\Scripts\\Creds\\config.ini')
+    # read config file with recipient list for email
     config_recipient = configparser.ConfigParser()
-    config_recipient.read('C:\\Creds\\emails.ini')
+    config_recipient.read('C:\\Scripts\\Creds\\emails.ini')
 
-    # These are variables for the email that will be sent.
-    # Make sure to use your own library's email server (emailhost)
+    # These are variables for the email that will be sent, taken from .ini files referenced above
     emailhost = config["email"]["host"]
-    # user and pw was not in the original script, necessary for Minuteman's Gmail accounts
     emailuser = config["email"]["user"]
     emailpass = config["email"]["pw"]
     emailport = config["email"]["port"]
     emailsubject = "monthly amount owed errors report"
+    emailfrom = config["email"]["sender"]
+    emailto = config_recipient["amt_owed_errors"]["recipients"].split()
+    #plain text of email message
     emailmessage = """***This is an automated email***
     
     
     The monthly amt owed errors has been attached."""
-
-    # Enter your own email information
-    emailfrom = config["email"]["sender"]
-    emailto = config_recipient["amt_owed_errors"]["recipients"].split()
 
     # Creating the email message
     msg = MIMEMultipart()
@@ -97,7 +101,6 @@ def send_email(attachment):
 
     # Sending the email message
     smtp = smtplib.SMTP(emailhost, emailport)
-    # for Gmail connection used within Minuteman
     smtp.ehlo()
     smtp.starttls()
     smtp.login(emailuser, emailpass)
@@ -105,6 +108,7 @@ def send_email(attachment):
     smtp.quit()
 
 def main():
+	#query to identify patron records with incorrect owed_amt fields
 	query = """\
            SELECT
              rm.record_type_code||rm.record_num || 'a' AS Patron_ID,
@@ -118,10 +122,15 @@ def main():
            GROUP BY 1,2,p.owed_amt
            HAVING p.owed_amt != SUM(COALESCE(f.item_charge_amt, 0.00) + COALESCE(f.processing_fee_amt, 0.00) + COALESCE(f.billing_fee_amt, 0.00) - COALESCE(f.paid_amt, 0.00))
            """
-	  
 	query_results, headers = run_query(query)
+	
+	#generate csv file from those query results
 	local_file = write_csv(query_results, headers)
-	send_email(local_file)       
+	
+	#send email with attached file
+	send_email(local_file)
+	
+	#delete csv file once email has been sent       
 	os.remove(local_file)
     
 main()
