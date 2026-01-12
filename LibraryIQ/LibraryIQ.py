@@ -19,19 +19,19 @@ from datetime import date
 
 
 # populate csv file with results of a sql query
-def csvWriter(query_results, headers, csvfile):
+def csv_writer(query_results, headers, csv_file):
 
-    with open(csvfile, "w", encoding="utf-8", newline="") as tempFile:
+    with open(csv_file, "w", encoding="utf-8", newline="") as tempFile:
         myFile = csv.writer(tempFile, delimiter=",")
         myFile.writerow(headers)
         myFile.writerows(query_results)
     tempFile.close()
 
-    return csvfile
+    return csv_file
 
 
 # connect to Sierra-db and store results of an sql query
-def runquery(query, csv_file):
+def run_query(query, csv_file):
     """
     import configuration file containing our connection string
     config.ini contains data like the following
@@ -58,13 +58,13 @@ def runquery(query, csv_file):
     conn.close()
 
     # run csvWriter function to populate csv_file based on query results
-    end_file = csvWriter(rows, headers, csv_file)
+    end_file = csv_writer(rows, headers, csv_file)
 
     return end_file
 
 
 # alt function combining runquery() and csvWriter() to handle full item holdings file
-def runlargequery(csv_file):
+def run_large_query(csv_file):
     # instantiate offset value for use with query
     offset = 0
     # see runquery() function for config file example
@@ -625,28 +625,28 @@ def main():
     on_order_file = "OrderedItems_{}.csv".format(date.today().strftime("%Y%m%d"))
 
     # for each file, run associated query, populate the file, and sftp it to libraryiq
-    bibs_csv = runquery(bibs_query, bibs_file)
+    bibs_csv = run_query(bibs_query, bibs_file)
     sftp_file(bibs_csv)
-    holds_csv = runquery(holds_query, holds_file)
+    holds_csv = run_query(holds_query, holds_file)
     sftp_file(holds_csv)
-    patrons_csv = runquery(patrons_query, patrons_file)
+    patrons_csv = run_query(patrons_query, patrons_file)
     sftp_file(patrons_csv)
-    circ_csv = runquery(circ_query, circ_file)
+    circ_csv = run_query(circ_query, circ_file)
     sftp_file(circ_csv)
-    fulfilled_holds_csv = runquery(fulfilled_holds_query, fulfilled_holds_file)
+    fulfilled_holds_csv = run_query(fulfilled_holds_query, fulfilled_holds_file)
     sftp_file(fulfilled_holds_csv)
-    requested_holds_csv = runquery(requested_holds_query, requested_holds_file)
+    requested_holds_csv = run_query(requested_holds_query, requested_holds_file)
     sftp_file(requested_holds_csv)
-    unfilled_holds_csv = runquery(unfilled_holds_query, unfilled_holds_file)
+    unfilled_holds_csv = run_query(unfilled_holds_query, unfilled_holds_file)
     sftp_file(unfilled_holds_csv)
-    on_order_csv = runquery(on_order_query, on_order_file)
+    on_order_csv = run_query(on_order_query, on_order_file)
     sftp_file(on_order_csv)
 
     # On Friday run full item file using runlargequery(), other days use runquery() for delta file only
     if datetime.now().weekday() == 4:
-        items_csv = runlargequery(items_file)
+        items_csv = run_largequery(items_file)
     else:
-        items_csv = runquery(items_query, items_file)
+        items_csv = run_query(items_query, items_file)
     sftp_file(items_csv)
 
 

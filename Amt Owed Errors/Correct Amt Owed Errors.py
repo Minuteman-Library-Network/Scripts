@@ -20,6 +20,7 @@ import psycopg2
 # make sure to remove verify=False from all request calls, in place to handle expired certificate on test
 # also temporary limit on error query from testing
 
+
 # function to generate access token for use with Sierra API
 def get_token():
     # config api
@@ -64,6 +65,7 @@ def run_query(query):
     # return variable containing query results
     return rows
 
+
 # function to create a manual charge on a patron account
 def manual_charge(patron_id, amount, location):
     config = configparser.ConfigParser()
@@ -78,8 +80,9 @@ def manual_charge(patron_id, amount, location):
     payload = {"amount": amount, "reason": "Residual fine", "location": location}
     request = requests.post(url, data=json.dumps(payload), headers=header, verify=False)
 
+
 # function to waive a fine
-def clear_fine(patron_id, invoiceNumber):
+def clear_fine(patron_id, invoice_number):
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
@@ -91,7 +94,7 @@ def clear_fine(patron_id, invoiceNumber):
     }
     payload = {
         "payments": [
-            {"amount": 0, "paymentType": 2, "invoiceNumber": "" + invoiceNumber + ""}
+            {"amount": 0, "paymentType": 2, "invoiceNumber": "" + invoice_number + ""}
         ]
     }
     request = requests.put(url, data=json.dumps(payload), headers=header, verify=False)
