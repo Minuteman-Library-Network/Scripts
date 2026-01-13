@@ -49,7 +49,7 @@ def run_query(query):
 #function takes the results of a query and converts them to a csv file
 def write_csv(query_results, headers):
     #provide a name for the csv file and save the file to a variable
-    csvfile = 'amt_owed_errors{}.csv'.format(date.today())
+    csvfile = '/Scripts/Amt Owed Errors/Temp Files/amt_owed_errors{}.csv'.format(date.today())
     
     #open csvfile in write mode and add a row to it for the headers and each line of query_results
     with open(csvfile,'w', encoding='utf-8', newline='') as tempFile:
@@ -61,7 +61,7 @@ def write_csv(query_results, headers):
     return csvfile
 
 #function takes a file as a parameter and attaches that file to an outgoing email
-def send_email(attachment):
+def send_email(subject, message, attachment):
     # read config file with credentials for email account
     config = configparser.ConfigParser()
     config.read('C:\\Scripts\\Creds\\config.ini')
@@ -74,14 +74,10 @@ def send_email(attachment):
     emailuser = config["email"]["user"]
     emailpass = config["email"]["pw"]
     emailport = config["email"]["port"]
-    emailsubject = "monthly amount owed errors report"
     emailfrom = config["email"]["sender"]
     emailto = config_recipient["amt_owed_errors"]["recipients"].split()
     #plain text of email message
-    emailmessage = """***This is an automated email***
-    
-    
-    The monthly amt owed errors has been attached."""
+    emailmessage = message
 
     # Creating the email message
     msg = MIMEMultipart()
@@ -91,12 +87,12 @@ def send_email(attachment):
     else:
         msg["To"] = emailto
     msg["Date"] = formatdate(localtime=True)
-    msg["Subject"] = emailsubject
+    msg["Subject"] = subject
     msg.attach(MIMEText(emailmessage))
     part = MIMEBase("application", "octet-stream")
     part.set_payload(open(attachment, "rb").read())
     encoders.encode_base64(part)
-    part.add_header("Content-Disposition", "attachment; filename=%s" % attachment)
+    part.add_header("Content-Disposition", "attachment; filename=%s" % attachment.rsplit("/", 1)[-1])
     msg.attach(part)
 
     # Sending the email message
@@ -128,7 +124,12 @@ def main():
 	local_file = write_csv(query_results, headers)
 	
 	#send email with attached file
-	send_email(local_file)
+	email_subject = "monthly amount owed errors report"
+	email_message = """***This is an automated email***
+    
+    
+    The monthly amt owed errors has been attached."""
+	send_email(email_subject, email_message, local_file)
 	
 	#delete csv file once email has been sent       
 	os.remove(local_file)
