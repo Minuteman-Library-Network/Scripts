@@ -53,7 +53,7 @@ def run_query(query):
 def gen_map(patron_df, lat, lon, mapzoom):
 
     # generate pandas dataframe from provided tigerline GIS file
-    zipfile = "zip://Data Sources//tl_2023_25_bg.zip"
+    zipfile = "zip://Data Sources//tl_2024_25_bg.zip"
     df = gpd.read_file(zipfile).to_crs("EPSG:4326")
     df.columns = df.columns.str.lower()
 
@@ -62,7 +62,7 @@ def gen_map(patron_df, lat, lon, mapzoom):
 
     # generate df for census acs population totals
     pop_df = pd.read_csv(
-        "/Scripts/Patron Maps/Data Sources/2023 acs pop estimate bg.csv",
+        "/Scripts/Patron Maps/Data Sources/2024 acs pop estimate bg.csv",
         dtype={"geoid": str},
     )
 
@@ -221,12 +221,7 @@ def main(library, tracts, lat, lon, mapzoom):
     gen_map(df, lat, lon, mapzoom)
 
     # upload file and delete local copy
-    sftp_file(
-        "C:\\Scripts\\Patron Maps\\Temp Files\\CardholderPct{}.html".format(
-            date.today()
-        ),
-        library,
-    )
+    sftp_file("C:\\Scripts\\Patron Maps\\Temp Files\\CardholderPct{}.html".format(date.today()),library)
 
 
 # run for each municipality within Minuteman

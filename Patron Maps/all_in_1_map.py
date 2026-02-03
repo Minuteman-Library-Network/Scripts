@@ -55,7 +55,7 @@ def run_query(query):
 def gen_map(patron_df):
 
     # generate pandas dataframe from provided tigerline GIS file
-    zipfile = "zip://Data Sources//tl_2023_25_bg.zip"
+    zipfile = "zip://Data Sources//tl_2024_25_bg.zip"
     df = gpd.read_file(zipfile).to_crs("EPSG:4326")
     df.columns = df.columns.str.lower()
 
@@ -64,7 +64,7 @@ def gen_map(patron_df):
 
     # generate df for census acs population totals
     pop_df = pd.read_csv(
-        "/Scripts/Patron Maps/Data Sources/2023 acs pop estimate bg.csv",
+        "/Scripts/Patron Maps/Data Sources/2024 acs pop estimate bg.csv",
         dtype={"geoid": str},
     )
 
@@ -240,10 +240,7 @@ def main(library, tracts):
     gen_map(df)
 
     # upload file and delete local copy
-    sftp_file(
-        "C:\\Scripts\\Patron Maps\\Temp Files\\AllInOneMap{}.html".format(date.today()),
-        library,
-    )
+    sftp_file("C:\\Scripts\\Patron Maps\\Temp Files\\AllInOneMap{}.html".format(date.today()),library)
 
 
 main("Acton", "'363102','363103','363104','363105','363106','363201','363202'")

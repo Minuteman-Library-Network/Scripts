@@ -51,7 +51,7 @@ def run_query(query):
 # function takes the results of a query and converts them to a csv file
 def write_csv(query_results, headers):
     # provide a name for the csv file and save the file to a variable
-    csvfile = "/Scripts/Patron Maps/Temp Files/amt_owed_errors{}.csv".format(
+    csvfile = "/Scripts/Patron Maps/Temp Files/patron_dashboard_update{}.csv".format(
         date.today()
     )
 

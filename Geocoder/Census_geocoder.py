@@ -117,7 +117,7 @@ def csv_writer(query_results, csv_file):
 def geocode(csv_file):
     start_time = datetime.now()
     cg = censusgeocode.CensusGeocode(
-        benchmark="Public_AR_Current", vintage="Census2020_Current"
+        benchmark="Public_AR_Current", vintage="Current_Current"
     )
 
     print("sending batch file to process")
