@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+
+"""
+Jeremy Goldstein
+Minuteman Library Network
+
+Generates report of item counts per branch
+"""
+# run in py38
+
+import psycopg2
+import configparser
+import xlsxwriter
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email.utils import formatdate
+from email import encoders
+from datetime import date
+
+
+# function takes a sql query as a parameter, connects to a database and returns the results
+def run_query(query):
+    # read config file with database login details
+    config = configparser.ConfigParser()
+    config.read("C:\\Scripts\\Creds\\config.ini")
+
+    # Connecting to PostgreSQL database
+    try:
+        conn = psycopg2.connect(config["sql"]["connection_string"])
+    except psycopg2.Error as e:
+        print("Unable to connect to database: " + str(e))
+
+    # Opening a session and querying the database
+    cursor = conn.cursor()
+    cursor.execute(query)
+    # Storing the results in a variable. We'll use it later.
+    rows = cursor.fetchall()
+    # close database connection
+    conn.close()
+    # return variables containing query results and column headers
+    return rows
+
+
+# convert sql query results into formatted excel file
+def excel_writer(query_results, excel_file):
+    # Creating the Excel file for staff
+    workbook = xlsxwriter.Workbook(excel_file)
+    worksheet = workbook.add_worksheet()
+
+    # Formatting our Excel worksheet
+    worksheet.set_landscape()
+    worksheet.hide_gridlines(0)
+
+    # Formatting Cells
+    eformat = workbook.add_format({"text_wrap": True, "valign": "top"})
+    eformatlabel = workbook.add_format(
+        {"text_wrap": True, "valign": "top", "bold": True}
+    )
+
+    # Setting the column widths
+    worksheet.set_column(0, 0, 13.57)
+    worksheet.set_column(1, 1, 35.67)
+    worksheet.set_column(1, 2, 10.43)
+
+    # Inserting a header
+    worksheet.set_header("Holdings Summary")
+
+    # Adding column labels
+    worksheet.write(0, 0, "Code", eformatlabel)
+    worksheet.write(0, 1, "Library", eformatlabel)
+    worksheet.write(0, 2, "Totals", eformatlabel)
+
+    # Writing the report for staff to the Excel worksheet
+    for rownum, row in enumerate(query_results):
+        worksheet.write(rownum + 1, 0, row[0], eformat)
+        worksheet.write(rownum + 1, 1, row[1], eformat)
+        worksheet.write(rownum + 1, 2, row[2], eformat)
+
+    workbook.close()
+
+
+# function takes a file as a parameter and attaches that file to an outgoing email
+def send_email(subject, message, attachment):
+    # read config file with credentials for email account
+    config = configparser.ConfigParser()
+    config.read("C:\\Scripts\\Creds\\config.ini")
+    # read config file with recipient list for email
+    config_recipient = configparser.ConfigParser()
+    config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
+
+    # These are variables for the email that will be sent, taken from .ini files referenced above
+    emailhost = config["email"]["host"]
+    emailuser = config["email"]["user"]
+    emailpass = config["email"]["pw"]
+    emailport = config["email"]["port"]
+    emailfrom = config["email"]["sender"]
+    emailto = config_recipient["annual_reports"]["recipients"].split()
+    # plain text of email message
+    emailmessage = message
+
+    # Creating the email message
+    msg = MIMEMultipart()
+    msg["From"] = emailfrom
+    if type(emailto) is list:
+        msg["To"] = ", ".join(emailto)
+    else:
+        msg["To"] = emailto
+    msg["Date"] = formatdate(localtime=True)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(emailmessage))
+    part = MIMEBase("application", "octet-stream")
+    part.set_payload(open(attachment, "rb").read())
+    encoders.encode_base64(part)
+    part.add_header(
+        "Content-Disposition", "attachment; filename=%s" % attachment.rsplit("/", 1)[-1]
+    )
+    msg.attach(part)
+
+    # Sending the email message
+    smtp = smtplib.SMTP(emailhost, emailport)
+    smtp.ehlo()
+    smtp.starttls()
+    smtp.login(emailuser, emailpass)
+    smtp.sendmail(emailfrom, emailto, msg.as_string())
+    smtp.quit()
+
+
+def main():
+    # query to identify patron records with incorrect owed_amt fields
+    query = """\
+           SELECT
+             --1st two characters designates branch
+             SUBSTRING(i.location_code,1,2) AS Code,
+             l.NAME AS Library,
+             count(i.id) AS item_count
+           FROM sierra_view.item_record i
+           JOIN sierra_view.location_myuser l
+             ON i.location_code = l.code
+           --Exclude itype used for test records
+           WHERE i.itype_code_num != '80'
+           GROUP BY 1,2
+           ORDER BY 1,2
+           """
+    query_results = run_query(query)
+
+    # generate excel file from those query results
+    excel_file = "/Scripts/Annual Reports/Archive/Holdings Summary{}.xlsx".format(
+        date.today()
+    )
+    excel_writer(query_results, excel_file)
+
+    # send email with attached file
+    email_subject = "Holdings Summary"
+    email_message = """***This is an automated email***
+
+
+The Holdings Summary report has been attached."""
+    send_email(email_subject, email_message, excel_file)
+
+
+main()

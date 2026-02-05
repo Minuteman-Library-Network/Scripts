@@ -18,6 +18,7 @@ from googleapiclient.discovery import build
 import gspread
 
 
+# function initializes a session using the Sierra API
 def init_api():
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
@@ -41,6 +42,7 @@ def init_api():
     return sierra_api
 
 
+# function takes a sql query as a parameter, connects to a database and returns the results
 def runquery(query):
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
@@ -68,8 +70,6 @@ def checkin_item(barcode, username, statgroup, sierra_api):
         + "&statgroup="
         + statgroup
     )
-    # params = {"statgroup": statgroup}
-    # test with just sending statgroup parameter with URL
     request = sierra_api.request("DELETE", url)
     request.raise_for_status()
 
