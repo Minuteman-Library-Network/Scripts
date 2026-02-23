@@ -18,6 +18,7 @@ from email.mime.text import MIMEText
 from email.utils import formatdate
 from email import encoders
 from datetime import date
+import traceback
 
 
 # function takes a sql query as a parameter, connects to a database and returns the results
@@ -46,37 +47,39 @@ def run_query(query):
 # convert sql query results into formatted excel file
 def excel_writer(query_results, excel_file):
 
-    #Creating the Excel file for staff
+    # Creating the Excel file for staff
     workbook = xlsxwriter.Workbook(excel_file)
     worksheet = workbook.add_worksheet()
 
-    #Formatting our Excel worksheet
+    # Formatting our Excel worksheet
     worksheet.set_landscape()
     worksheet.hide_gridlines(0)
 
-    #Formatting Cells
-    eformat= workbook.add_format({'text_wrap': True, 'valign': 'top'})
-    eformatlabel= workbook.add_format({'text_wrap': True, 'valign': 'top', 'bold': True})
+    # Formatting Cells
+    eformat = workbook.add_format({"text_wrap": True, "valign": "top"})
+    eformatlabel = workbook.add_format(
+        {"text_wrap": True, "valign": "top", "bold": True}
+    )
 
     # Setting the column widths
-    worksheet.set_column(0,0,13.57)
-    worksheet.set_column(1,1,16.43)
-    worksheet.set_column(1,2,16.43)
+    worksheet.set_column(0, 0, 13.57)
+    worksheet.set_column(1, 1, 16.43)
+    worksheet.set_column(1, 2, 16.43)
 
-    #Inserting a header
-    worksheet.set_header('Holdings By Status')
+    # Inserting a header
+    worksheet.set_header("Holdings By Status")
 
     # Adding column labels
-    worksheet.write(0,0,'Location', eformatlabel)
-    worksheet.write(0,1,'Status', eformatlabel)
-    worksheet.write(0,2,'Count', eformatlabel)
+    worksheet.write(0, 0, "Location", eformatlabel)
+    worksheet.write(0, 1, "Status", eformatlabel)
+    worksheet.write(0, 2, "Count", eformatlabel)
 
     # Writing the report for staff to the Excel worksheet
     for rownum, row in enumerate(query_results):
-        worksheet.write(rownum+1,0,row[0], eformat)
-        worksheet.write(rownum+1,1,row[1], eformat)
-        worksheet.write(rownum+1,2,row[2], eformat)
-    
+        worksheet.write(rownum + 1, 0, row[0], eformat)
+        worksheet.write(rownum + 1, 1, row[1], eformat)
+        worksheet.write(rownum + 1, 2, row[2], eformat)
+
     workbook.close()
 
 
@@ -126,6 +129,42 @@ def send_email(subject, message, attachment):
     smtp.quit()
 
 
+# function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
+def send_email_error(subject, message, recipient):
+    # read config file with Sierra login credentials
+    config = configparser.ConfigParser()
+    config.read("C:\\Scripts\\Creds\\config.ini")
+
+    # These are variables for the email that will be sent.
+    # Make sure to use your own library's email server (emailhost)
+    emailhost = config["email"]["host"]
+    emailuser = config["email"]["user"]
+    emailpass = config["email"]["pw"]
+    emailport = config["email"]["port"]
+    emailfrom = config["email"]["sender"]
+
+    # Creating the email message
+    msg = MIMEMultipart()
+    emailmessage = message
+    msg["From"] = emailfrom
+    if type(recipient) is list:
+        msg["To"] = ", ".join(recipient)
+    else:
+        msg["To"] = recipient
+    msg["Date"] = formatdate(localtime=True)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(emailmessage))
+
+    # Sending the email message
+    smtp = smtplib.SMTP(emailhost, emailport)
+    # for Gmail connection used within Minuteman
+    smtp.ehlo()
+    smtp.starttls()
+    smtp.login(emailuser, emailpass)
+    smtp.sendmail(emailfrom, recipient, msg.as_string())
+    smtp.quit()
+
+
 def main():
     # query to identify patron records with incorrect owed_amt fields
     query = """
@@ -156,4 +195,21 @@ The Holdings By Status report has been attached."""
     send_email(email_subject, email_message, excel_file)
 
 
-main()
+# run main function and send error email to admin of script encounters an error
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        # read config file with recipient list for email
+        config_recipient = configparser.ConfigParser()
+        config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
+        emailto = config_recipient["script_error"]["recipients"].split()
+
+        # craft email subject and message containing error message details from traceback
+        email_subject = "annual reports: holdings by status script error"
+        email_message = (
+            "Your script failed with the following error:\n\n" + traceback.format_exc()
+        )
+
+        send_email_error(email_subject, email_message, emailto)
+        raise

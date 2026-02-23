@@ -17,6 +17,13 @@ import configparser
 import os
 import pysftp
 from datetime import date
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email.utils import formatdate
+from email import encoders
+import traceback
 
 
 # function takes a sql query as a parameter, connects to a database and returns the results
@@ -89,48 +96,100 @@ def sftp_file(file, library):
     cnopts = pysftp.CnOpts()
     cnopts.hostkeys = None
 
-    #open sftp connection
+    # open sftp connection
     srv = pysftp.Connection(
         host=config["ingram"]["host"],
         username=config["ingram"]["user_" + library],
         password=config["ingram"]["pw_" + library],
         cnopts=cnopts,
     )
-    #upload specified file to root directory
+    # upload specified file to root directory
     srv.put(file)
 
-    #close connection
+    # close connection
     srv.close()
 
 
+# function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
+def send_email_error(subject, message, recipient):
+    # read config file with Sierra login credentials
+    config = configparser.ConfigParser()
+    config.read("C:\\Scripts\\Creds\\config.ini")
+
+    # These are variables for the email that will be sent.
+    # Make sure to use your own library's email server (emailhost)
+    emailhost = config["email"]["host"]
+    emailuser = config["email"]["user"]
+    emailpass = config["email"]["pw"]
+    emailport = config["email"]["port"]
+    emailfrom = config["email"]["sender"]
+
+    # Creating the email message
+    msg = MIMEMultipart()
+    emailmessage = message
+    msg["From"] = emailfrom
+    if type(recipient) is list:
+        msg["To"] = ", ".join(recipient)
+    else:
+        msg["To"] = recipient
+    msg["Date"] = formatdate(localtime=True)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(emailmessage))
+
+    # Sending the email message
+    smtp = smtplib.SMTP(emailhost, emailport)
+    # for Gmail connection used within Minuteman
+    smtp.ehlo()
+    smtp.starttls()
+    smtp.login(emailuser, emailpass)
+    smtp.sendmail(emailfrom, recipient, msg.as_string())
+    smtp.quit()
+
+
 def main(library):
-    #run holdings query for specified library
-    query = open(library + "_ingram_holdings.sql", "r").read()
-    query_results = run_query(query)
-    
-    #generate marc file based on those query results
-    marc_file_name = (
-        "/Scripts/Ingram Holdings/Temp_Files/"
-        + library
-        + "_holdings{}.mrc".format(date.today())
-    )
-    marc_file = marc_writer(query_results, marc_file_name)
-    
-    # sftp file to Ingram
-    sftp_file(
-        "C:\\Scripts\\Ingram Holdings\\Temp_Files\\"
-        + library
-        + "_holdings{}.mrc".format(date.today()),
-        library,
-    )
-    
-    # delete file once script is complete
-    os.remove(marc_file)
+    try:
+        # run holdings query for specified library
+        query = open(library + "_ingram_holdings.sql", "r").read()
+        query_results = run_query(query)
+
+        # generate marc file based on those query results
+        marc_file_name = (
+            "/Scripts/Ingram Holdings/Temp_Files/"
+            + library
+            + "_holdings{}.mrc".format(date.today())
+        )
+        marc_file = marc_writer(query_results, marc_file_name)
+
+        # sftp file to Ingram
+        sftp_file(
+            "C:\\Scripts\\Ingram Holdings\\Temp_Files\\"
+            + library
+            + "_holdings{}.mrc".format(date.today()),
+            library,
+        )
+
+        # delete file once script is complete
+        os.remove(marc_file)
+    except Exception:
+        # read config file with recipient list for email
+        config_recipient = configparser.ConfigParser()
+        config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
+        emailto = config_recipient["script_error"]["recipients"].split()
+
+        # craft email subject and message containing error message details from traceback
+        email_subject = "Ingram Holdings " + library + " script error"
+        email_message = (
+            "Your script failed with the following error:\n\n" + traceback.format_exc()
+        )
+
+        send_email_error(email_subject, email_message, emailto)
+        raise
 
 
-main("blm")
-main("con")
-main("fpl")
-main("nor")
-main("som")
-main("win")
+if __name__ == "__main__":
+    main("blm")
+    main("con")
+    main("fpl")
+    main("nor")
+    main("som")
+    main("win")

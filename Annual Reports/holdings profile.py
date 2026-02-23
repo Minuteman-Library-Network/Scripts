@@ -18,6 +18,7 @@ from email.mime.text import MIMEText
 from email.utils import formatdate
 from email import encoders
 from datetime import date
+import traceback
 
 
 # function takes a sql query as a parameter, connects to a database and returns the results
@@ -657,6 +658,42 @@ def send_email(subject, message, attachment):
     smtp.quit()
 
 
+# function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
+def send_email_error(subject, message, recipient):
+    # read config file with Sierra login credentials
+    config = configparser.ConfigParser()
+    config.read("C:\\Scripts\\Creds\\config.ini")
+
+    # These are variables for the email that will be sent.
+    # Make sure to use your own library's email server (emailhost)
+    emailhost = config["email"]["host"]
+    emailuser = config["email"]["user"]
+    emailpass = config["email"]["pw"]
+    emailport = config["email"]["port"]
+    emailfrom = config["email"]["sender"]
+
+    # Creating the email message
+    msg = MIMEMultipart()
+    emailmessage = message
+    msg["From"] = emailfrom
+    if type(recipient) is list:
+        msg["To"] = ", ".join(recipient)
+    else:
+        msg["To"] = recipient
+    msg["Date"] = formatdate(localtime=True)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(emailmessage))
+
+    # Sending the email message
+    smtp = smtplib.SMTP(emailhost, emailport)
+    # for Gmail connection used within Minuteman
+    smtp.ehlo()
+    smtp.starttls()
+    smtp.login(emailuser, emailpass)
+    smtp.sendmail(emailfrom, recipient, msg.as_string())
+    smtp.quit()
+
+
 def main():
     # query to count new items added at each location
     query = """\
@@ -796,7 +833,7 @@ def main():
               COUNT(i.id) FILTER(WHERE i.itype_code_num = 255) AS "() 255",
               COUNT(i.id) FILTER(WHERE i.itype_code_num = 256) AS "() 256",
               COUNT(i.id) FILTER(WHERE i.itype_code_num = 257) AS "() 257"
-            FROM sierra_view.item_record as i
+            FROM sierra_view.item_record i
             JOIN sierra_view.location_myuser l
               ON i.location_code = l.code
 
@@ -820,4 +857,21 @@ The Holdings Profile report has been attached."""
     send_email(email_subject, email_message, excel_file)
 
 
-main()
+# run main function and send error email to admin of script encounters an error
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        # read config file with recipient list for email
+        config_recipient = configparser.ConfigParser()
+        config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
+        emailto = config_recipient["script_error"]["recipients"].split()
+
+        # craft email subject and message containing error message details from traceback
+        email_subject = "annual reports: holdings profile script error"
+        email_message = (
+            "Your script failed with the following error:\n\n" + traceback.format_exc()
+        )
+
+        send_email_error(email_subject, email_message, emailto)
+        raise
