@@ -5,3 +5,6 @@ Temp_Files/
 Temp Files/
 Data Sources/
 Archive/
+mailing_ready/
+*.docx
+BillsNoEmail.txt

@@ -164,7 +164,7 @@ def send_email_error(subject, message, recipient):
 
 def main():
     # query to identify patron records with incorrect owed_amt fields
-    query = """\
+    query = """
            SELECT
              record_type_code,
              COUNT(id)
