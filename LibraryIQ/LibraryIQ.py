@@ -723,7 +723,7 @@ def main():
 
     # On Friday run full item file using runlargequery(), other days use runquery() for delta file only
     if datetime.now().weekday() == 4:
-        items_csv = run_largequery(items_file)
+        items_csv = run_large_query(items_file)
     else:
         items_csv = run_query(items_query, items_file)
     sftp_file(items_csv)
