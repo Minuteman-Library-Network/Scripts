@@ -6,14 +6,10 @@ Script gathers daily statistics and transaction counts used by Minuteman's circu
 Data is appended to a collection of Google Sheets used as data sources by Looker Studio
 """
 
-# run in py38
+# run in py313
 
 import configparser
 import psycopg2
-import os
-from oauth2client.service_account import ServiceAccountCredentials
-from googleapiclient.discovery import build
-import gspread
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -21,6 +17,13 @@ from email.mime.text import MIMEText
 from email.utils import formatdate
 from email import encoders
 import traceback
+import datetime
+import pygsheets
+
+# used by old appedToSheet function
+# from oauth2client.service_account import ServiceAccountCredentials
+# from googleapiclient.discovery import build
+# import gspread
 
 
 # function takes a sql query as a parameter, connects to a database and returns the results
@@ -46,6 +49,8 @@ def runquery(query):
     return rows
 
 
+"""
+#old form using gspread
 # log items that were corrected to an existing Google Sheet
 def appendToSheet(spreadSheetId, data):
     scopes = [
@@ -68,6 +73,42 @@ def appendToSheet(spreadSheetId, data):
         )
     )
     result = request.execute()
+"""
+
+
+# log items that were corrected to an existing Google Sheet
+def appendToSheet(spreadSheetId, data):
+    if not data:
+        raise ValueError("Data must not be empty.")
+
+    gc = pygsheets.authorize(
+        service_file="C:\\Scripts\\Creds\\GSheet updater creds.json"
+    )
+
+    sh = gc.open_by_key(spreadSheetId)
+    wks = sh.sheet1  # or sh.worksheet_by_title("My Sheet")
+
+    # Find the first empty row and insert data there
+    first_empty_row = len(wks.get_all_values(include_tailing_empty_rows=False)) + 1
+    rows_needed = first_empty_row + len(data) - 1
+
+    # Expand the sheet if the data would exceed the current grid size
+    if rows_needed > wks.rows:
+        wks.add_rows(rows_needed - wks.rows)
+    wks.update_values(f"A{first_empty_row}", data)
+
+
+# converts psycopg2 fetchall() output to matrix required by pygsheets
+def parse_pg_data(rows):
+
+    def convert(val):
+        if val is None:
+            return ""
+        if isinstance(val, (datetime.date, datetime.datetime)):
+            return val.isoformat()  # e.g. "2026-03-04"
+        return val  # int, float, str pass through as-is
+
+    return [list(convert(val) for val in row) for row in rows]
 
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
@@ -174,7 +215,8 @@ def main():
 
     # run query and append results to specified GSheet
     fines_assessed = runquery(fines_assessed_query)
-    appendToSheet(config["gsheet"]["fines_assessed"], fines_assessed)
+    fines_assessed_parsed = parse_pg_data(fines_assessed)
+    appendToSheet(config["gsheet"]["fines_assessed"], fines_assessed_parsed)
 
     # repeat steps for each dataset
 
@@ -260,7 +302,8 @@ def main():
       """
 
     fines_paid = runquery(fines_paid_query)
-    appendToSheet(config["gsheet"]["fines_paid"], fines_paid)
+    fines_paid_parsed = parse_pg_data(fines_paid)
+    appendToSheet(config["gsheet"]["fines_paid"], fines_paid_parsed)
 
     # query to gather counts of items coming to, leaving from, or sitting on the holdshelf at each location
     library_transit_counts_query = """
@@ -299,7 +342,10 @@ def main():
       ORDER BY 1,2
       """
     library_transit_counts = runquery(library_transit_counts_query)
-    appendToSheet(config["gsheet"]["library_transit_counts"], library_transit_counts)
+    library_transit_counts_parsed = parse_pg_data(library_transit_counts)
+    appendToSheet(
+        config["gsheet"]["library_transit_counts"], library_transit_counts_parsed
+    )
 
     # query gathers daily counts of each transaction type at each stat group
     circ_trans_snapshot_query = """
@@ -337,7 +383,8 @@ def main():
       ORDER BY 1,2
     """
     circ_trans_snapshot = runquery(circ_trans_snapshot_query)
-    appendToSheet(config["gsheet"]["circ_trans_snapshot"], circ_trans_snapshot)
+    circ_trans_snapshot_parsed = parse_pg_data(circ_trans_snapshot)
+    appendToSheet(config["gsheet"]["circ_trans_snapshot"], circ_trans_snapshot_parsed)
 
     # query gathers count of unique patrons to place a hold or checkout at each location each day
     unique_patron_counts_query = """
@@ -366,7 +413,8 @@ def main():
       """
 
     unique_patron_counts = runquery(unique_patron_counts_query)
-    appendToSheet(config["gsheet"]["unique_patron_counts"], unique_patron_counts)
+    unique_patron_counts_parsed = parse_pg_data(unique_patron_counts)
+    appendToSheet(config["gsheet"]["unique_patron_counts"], unique_patron_counts_parsed)
 
     # query gathers the total value of items checked out at each stat group daily by itype and mat type
     checkout_value_query = """
@@ -401,7 +449,8 @@ def main():
       GROUP BY 1,2,3,4,5
       """
     checkout_value = runquery(checkout_value_query)
-    appendToSheet(config["gsheet"]["checkout_value"], checkout_value)
+    checkout_value_parsed = parse_pg_data(checkout_value)
+    appendToSheet(config["gsheet"]["checkout_value"], checkout_value_parsed)
 
     # query to gather daily counts of holds on hold, in transit or on holdshelf at each location
     daily_holds_query = """
@@ -424,7 +473,8 @@ def main():
       """
 
     daily_holds = runquery(daily_holds_query)
-    appendToSheet(config["gsheet"]["daily_holds"], daily_holds)
+    daily_holds_parsed = parse_pg_data(daily_holds)
+    appendToSheet(config["gsheet"]["daily_holds"], daily_holds_parsed)
 
     # query to gather hourly transaction counts at each location
     hourly_transactions_query = """
@@ -478,7 +528,8 @@ def main():
       ORDER BY 1,2,3,4,5
       """
     hourly_transactions = runquery(hourly_transactions_query)
-    appendToSheet(config["gsheet"]["hourly_transactions"], hourly_transactions)
+    hourly_transactions_parsed = parse_pg_data(hourly_transactions)
+    appendToSheet(config["gsheet"]["hourly_transactions"], hourly_transactions_parsed)
 
     # gathers daily count of how many online registrations occured for each library
     online_registrations_query = """
@@ -499,7 +550,8 @@ def main():
       ORDER BY 1,2
       """
     online_registrations = runquery(online_registrations_query)
-    appendToSheet(config["gsheet"]["online_registrations"], online_registrations)
+    online_registrations_parsed = parse_pg_data(online_registrations)
+    appendToSheet(config["gsheet"]["online_registrations"], online_registrations_parsed)
 
     # Gathers daily totals of items in transit
     in_transit_snapshot_query = """
@@ -516,7 +568,8 @@ def main():
         ON i.id = h.record_id
       """
     in_transit_snapshot = runquery(in_transit_snapshot_query)
-    appendToSheet(config["gsheet"]["in_transit_snapshot"], in_transit_snapshot)
+    in_transit_snapshot_parsed = parse_pg_data(in_transit_snapshot)
+    appendToSheet(config["gsheet"]["in_transit_snapshot"], in_transit_snapshot_parsed)
 
 
 # run main function and send error email to admin of script encounters an error
