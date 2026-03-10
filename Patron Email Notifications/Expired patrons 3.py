@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Run in py38
+# Run in py313
 
 """
 Jeremy Goldstein

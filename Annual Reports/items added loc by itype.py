@@ -7,7 +7,7 @@ Minuteman Library Network
 Generates crosstab report of new items in the last year
 broken out by shelving location and item type
 """
-# run in py38
+# run in py313
 
 import psycopg2
 import configparser

@@ -6,7 +6,7 @@ Minuteman Library Network
 
 Generates ARIS holdings count report for annual statewide reporting
 """
-# run in py38
+# run in py313
 
 import psycopg2
 import xlsxwriter

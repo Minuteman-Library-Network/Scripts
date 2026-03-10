@@ -8,7 +8,7 @@ Query gathers report of billed childrens items belonging to Cambridge
 and sends excel file of results to designated staff at the library
 """
 
-# run in py38
+# run in py313
 
 import psycopg2
 import xlsxwriter

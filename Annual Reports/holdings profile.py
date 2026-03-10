@@ -6,7 +6,7 @@ Minuteman Library Network
 
 Generates holdings profile report for use with annual reports
 """
-# run in py38
+# run in py313
 
 import psycopg2
 import configparser

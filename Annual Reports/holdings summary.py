@@ -6,7 +6,7 @@ Minuteman Library Network
 
 Generates report of item counts per branch
 """
-# run in py38
+# run in py313
 
 import psycopg2
 import configparser

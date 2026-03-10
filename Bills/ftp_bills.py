@@ -38,10 +38,7 @@ def get_library_group_name(library_name):
         return "ASH", "Ashland"
     if "BEDFORD FREE PUBLIC LIBRARY" in library_upper:
         return "BED", "Bedford"
-    if (
-        "BELMONT LIBRARY AT BENTON LIB." in library_upper
-        or "BELMONT LIBRARY AT BEECH ST." in library_upper
-    ):
+    if "BELMONT PUBLIC LIBRARY" in library_upper:
         return "BLM", "Belmont"
     if (
         "PUBLIC LIBRARY OF BROOKLINE" in library_upper
@@ -158,7 +155,7 @@ def get_library_group_name(library_name):
 
 
 def create_mailing_ready_version(
-    input_file_path, output_directory="C:\Scripts\\Bills\mailing_ready"
+    input_file_path, output_directory="C:\Scripts\\Bills\\mailing_ready"
 ):
     """
     Creates mailing ready word doc of bills for a given library
@@ -342,7 +339,7 @@ def create_mailing_ready_version(
             display_name = "Watertown"
         if "WYL" in group_name:
             display_name = "Wayland"
-        if "WELY" in group_name:
+        if "WEL" in group_name:
             display_name = "Wellesley"
         if "WSN" in group_name:
             display_name = "Weston"

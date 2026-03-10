@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Run in sic
+# Run in py313
 
 """
 Jeremy Goldstein
@@ -687,6 +687,7 @@ def main():
     """
 
     # Instantiate .csv files with names including today's date
+    
     bibs_file = "Biblio_{}.csv".format(date.today().strftime("%Y%m%d"))
     items_file = "Items_{}.csv".format(date.today().strftime("%Y%m%d"))
     holds_file = "Holds_{}.csv".format(date.today().strftime("%Y%m%d"))

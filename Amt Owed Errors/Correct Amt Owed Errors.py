@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Run in py38
+# Run in py313
 
 """
 Identify patrons with amt owed discrepancies in their patron records

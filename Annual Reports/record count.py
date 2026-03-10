@@ -6,7 +6,7 @@ Minuteman Library Network
 
 Generates report of current record counts for all record types in Sierra
 """
-# run in py38
+# run in py313
 
 import psycopg2
 import configparser

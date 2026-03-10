@@ -7,7 +7,7 @@ Minuteman Library Network
 Generates report of current patrons by patron type
 Used to identify the patrons by residency
 """
-# run in py38
+# run in py313
 
 import psycopg2
 import configparser

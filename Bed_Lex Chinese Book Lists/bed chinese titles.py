@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# run in py338
+# run in py313
 
 """
 Jeremy Goldstein
@@ -162,7 +162,7 @@ def excel_writer(query_results, excel_file):
 def main(file, date_limit, scat_code):
 
     query = (
-        """
+        r"""
     SELECT
       DISTINCT(REGEXP_REPLACE(i.call_number,'\|[a-z]',' ','g')) AS call_number,
       CASE
