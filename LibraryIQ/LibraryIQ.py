@@ -88,7 +88,7 @@ def run_large_query(csv_file):
         myFile = csv.writer(tempFile, delimiter=",")
         # repeat query and csv writing until offset hits a value greater than the total number of items in system
         while offset < 6000000:
-            large_items_query = """\
+            large_items_query = """
             SELECT
               rmi.record_type_code||rmi.record_num AS "ItemNum",
               ip.barcode,
@@ -176,7 +176,7 @@ def run_large_query(csv_file):
 
 
 # function to sftp a specified file
-def sftp_file(file1):
+def sftp_file(file):
     """
     config.ini contains data like the following
     [libraryiq]
@@ -201,11 +201,11 @@ def sftp_file(file1):
 
     # change directory to upload and upload file there
     srv.cwd("/upload")
-    srv.put(file1)
+    srv.put(file)
     # close sftp connection
     srv.close()
     # delete local file once uploaded
-    os.remove(file1)
+    os.remove(file)
 
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
@@ -246,7 +246,7 @@ def send_email_error(subject, message, recipient):
 
 def main():
 
-    bibs_query = """\
+    bibs_query = """
     SELECT
       rm.record_type_code||rm.record_num AS "BibNum",
       STRING_AGG(SUBSTRING(num.content FROM '[0-9xX]+'),';' ORDER BY num.occ_num) FILTER(WHERE num.marc_tag = '020') AS isbn,
@@ -282,7 +282,7 @@ def main():
     GROUP BY 1,5,6,7,8,9
     """
 
-    items_query = """\
+    items_query = """
     SELECT
       rmi.record_type_code||rmi.record_num AS "ItemNum",
       ip.barcode,
@@ -350,7 +350,7 @@ def main():
     GROUP BY 1,2,3,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24
     """
 
-    holds_query = """\
+    holds_query = """
     SELECT
       DISTINCT rm.record_type_code||rm.record_num AS "BibNum",
       SUBSTRING(h.pickup_location_code,1,3) AS "BranchID",
@@ -382,7 +382,7 @@ def main():
     GROUP BY 1,2
     """
 
-    patrons_query = """\
+    patrons_query = r"""
     SELECT
       rmp.record_type_code||rmp.record_num AS PatronNum,
       TO_CHAR(p.expiration_date_gmt,'YYYY-MM-DD HH24:MI:SS') AS "ExpireDate",
@@ -429,7 +429,7 @@ def main():
     END
     """
 
-    circ_query = """\
+    circ_query = """
     SELECT
       rmi.record_type_code||rmi.record_num AS "ItemNum",
       ip.barcode AS "Barcode",
@@ -470,7 +470,7 @@ def main():
       AND t.transaction_gmt::DATE > CURRENT_DATE - INTERVAL '4 days'
     """
 
-    fulfilled_holds_query = """\
+    fulfilled_holds_query = """
     SELECT
       rm.record_type_code||rm.record_num AS "bibliographicRecordID",
       t.id AS "holdID",
@@ -498,7 +498,7 @@ def main():
     ORDER BY t.transaction_gmt
     """
 
-    requested_holds_query = """\
+    requested_holds_query = """
     SELECT
       rm.record_type_code||rm.record_num AS "bibliographicRecordID",
       t.id AS "holdID",
@@ -531,7 +531,7 @@ def main():
     ORDER BY t.transaction_gmt
     """
 
-    unfilled_holds_query = """\
+    unfilled_holds_query = """
     SELECT
       DISTINCT h.id AS "holdID",
       rm.record_type_code||rm.record_num AS "bibliographicRecordID",
@@ -613,7 +613,7 @@ def main():
       AND bp.material_code NOT IN ('b','y','s','h','w','l')
     """
 
-    on_order_query = """\
+    on_order_query = """
     --breaking out copy calculation to sub query to avoid one-to-many join errors
     WITH copies_ordered AS (
       SELECT
@@ -687,7 +687,6 @@ def main():
     """
 
     # Instantiate .csv files with names including today's date
-    
     bibs_file = "Biblio_{}.csv".format(date.today().strftime("%Y%m%d"))
     items_file = "Items_{}.csv".format(date.today().strftime("%Y%m%d"))
     holds_file = "Holds_{}.csv".format(date.today().strftime("%Y%m%d"))
@@ -728,6 +727,7 @@ def main():
     else:
         items_csv = run_query(items_query, items_file)
     sftp_file(items_csv)
+    
 
 
 # run main function and send error email to admin of script encounters an error

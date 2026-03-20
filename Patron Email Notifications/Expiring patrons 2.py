@@ -120,7 +120,7 @@ def main():
       SELECT
         MIN(n.first_name),
         MIN(n.last_name),
-        MIN(v.field_content) as email,
+        SPLIT_PART(MIN(v.field_content),',',1) as email,
         TO_CHAR(p.expiration_date_gmt,'Mon DD, YYYY'),
         p.id
       FROM sierra_view.patron_record as p

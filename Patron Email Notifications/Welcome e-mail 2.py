@@ -120,7 +120,7 @@ def main():
       SELECT
         MIN(n.first_name),
         MIN(n.last_name),
-        MIN(v.field_content) AS email,
+        SPLIT_PART(MIN(v.field_content),',',1) AS email,
         p.barcode,
         CASE
           WHEN p.ptype_code = 5 THEN 'the Belmont Public Library'

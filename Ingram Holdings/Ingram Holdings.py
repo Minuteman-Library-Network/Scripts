@@ -193,3 +193,4 @@ if __name__ == "__main__":
     main("nor")
     main("som")
     main("win")
+    
