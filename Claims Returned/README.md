@@ -1,4 +1,4 @@
-Scripts used to generate a quarterly list of items currently marked claimed returned for each of our libraries
+Script used to generate a quarterly list of items currently marked claimed returned for each of our libraries
 Reports are produced as Excel files that are then uploaded to our staff intrenet site for distribution, via sftp.
 
 Execution Plan:
