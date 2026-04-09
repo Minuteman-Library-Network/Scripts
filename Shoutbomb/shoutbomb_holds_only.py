@@ -132,6 +132,8 @@ def main():
 
     csv_writer(holds, holds_file_name)
 
+    # shoutbomb's ftp site uses implict TLS for FTP, which the pysftp library does not natively support
+    # as an alternative am calling a winscp script to handle the file upload
     os.system("c:\\Scripts\\Shoutbomb\\ftp_holds.bat")
 
 
@@ -143,7 +145,7 @@ if __name__ == "__main__":
         # read config file with recipient list for email
         config_recipient = configparser.ConfigParser()
         config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
-        emailto = config_recipient["script_error"]["recipients"].split()
+        emailto = config_recipient["script_error_extended"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
         email_subject = "shoutbomb holds only script error"
