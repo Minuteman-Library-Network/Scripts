@@ -255,7 +255,17 @@ def main():
       mp.name AS "MaterialType",
       b.best_title,
       b.best_author,
-      b.publish_year,
+	  --publish_year logic from Rebecca King, Thousand Oaks Library
+	  CASE
+        -- valid 4-digit year
+	    WHEN b.publish_year BETWEEN 1000 AND 2099 THEN b.publish_year
+        -- possible corrupted YYYYMMDD → try first 2 digits as year
+		WHEN b.publish_year BETWEEN 10000000 AND 99999999 THEN LEFT(b.publish_year::TEXT, 4)::INTEGER
+        -- possible truncated YYMM like 2603 → interpret as 2026
+		WHEN b.publish_year BETWEEN 0 AND 9999 AND LENGTH(b.publish_year::text) = 4
+		  THEN 2000 + LEFT(b.publish_year::text, 2)::INTEGER
+		ELSE NULL
+	  END AS publication_year,
       TRIM(TRAILING ',' FROM pub.content) AS publisher
   
     FROM sierra_view.bib_record_property b

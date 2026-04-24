@@ -1,15 +1,18 @@
 --print items and orders for Winchester
 
 WITH not_multi_volume AS (
-  SELECT l.bib_record_id
+  SELECT b.id AS bib_record_id
   
-  FROM sierra_view.bib_record_item_record_link l
+  FROM sierra_view.bib_record b 
+  LEFT JOIN sierra_view.bib_record_item_record_link l
+    ON b.id = l.bib_record_id
   LEFT JOIN sierra_view.varfield v
     ON l.item_record_id = v.record_id
     AND v.varfield_type_code = 'v'
     
-  GROUP BY 1
+  GROUP BY 1, l.bib_record_id
   HAVING COUNT(l.item_record_id) FILTER(WHERE v.field_content IS NOT NULL) = 0
+    OR l.bib_record_id IS NULL
 ),
 
 win_bibs AS (
