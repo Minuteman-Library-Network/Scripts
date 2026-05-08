@@ -24,22 +24,22 @@ from email import encoders
 import traceback
 
 #generate populate csv file with results of a sql query
-def csvWriter(query_results,headers,csvfile):
+def csv_writer(query_results,headers,csv_file):
 
-    with open(csvfile,'w', encoding='utf-8', newline='') as tempFile:
+    with open(csv_file,'w', encoding='utf-8', newline='') as tempFile:
         myFile = csv.writer(tempFile, delimiter='|')
         myFile.writerow(headers)
         myFile.writerows(query_results)
     tempFile.close()
     
-    return csvfile
+    return csv_file
 
 #connect to Sierra-db and store results of an sql query
-def runquery(query,csv_file):
+def run_query(query,csv_file):
 
     # import configuration file containing our connection string
     # app.ini looks like the following
-    #[db]
+    #[sql]
     #connection_string = dbname='iii' user='PUT_USERNAME_HERE' host='sierra-db.library-name.org' password='PUT_PASSWORD_HERE' port=1032
 
     config = configparser.ConfigParser()
@@ -48,18 +48,19 @@ def runquery(query,csv_file):
     try:
 	    # variable connection string should be defined in the imported config file
         conn = psycopg2.connect(config['sql']['connection_string'])
-    except:
-        print("unable to connect to the database")
+    except psycopg2.Error as e:
+        print("Unable to connect to database: " + str(e))
         
     #Opening a session and querying the database for weekly new items
     cursor = conn.cursor()
     cursor.execute(query)
-    #For now, just storing the data in a variable. We'll use it later.
+    # splitting out header information from query results
     headers = [i[0] for i in cursor.description]
     rows = cursor.fetchall()
     conn.close()
     
-    end_file = csvWriter(rows, headers, csv_file)
+    # run csv_writer function to populate csv_file based on query results
+    end_file = csv_writer(rows, headers, csv_file)
     
     return end_file
 
@@ -67,6 +68,7 @@ def ftp_file(file):
     config = configparser.ConfigParser()
     config.read('C:\\Scripts\\Creds\\config.ini')
 
+    # open ftp connection
     ftp = FTP(config['collectionhq']['host'])
     ftp.login(user=config['collectionhq']['user'], passwd = config['collectionhq']['pw'])
     fp = open(file, 'rb')
@@ -255,14 +257,17 @@ def main():
     ORDER BY 5
     """
 
+    # Instantiate .csv files with names including today's date
     circ_file = 'Transactions_{}.csv'.format(date.today().strftime('%Y%m%d'))
-    circ_csv = runquery(circ_query,circ_file)
-    ftp_file(circ_csv)
-        bibs_file = 'Bibs_{}.csv'.format(date.today().strftime('%Y%m%d'))
-    bibs_csv = runquery(bibs_query,bibs_file)
-    ftp_file(bibs_csv)
+    bibs_file = 'Bibs_{}.csv'.format(date.today().strftime('%Y%m%d'))
     items_file = 'Items_{}.csv'.format(date.today().strftime('%Y%m%d'))
-    items_csv = runquery(items_query,items_file)
+    
+    # for each file, run associated query, populate the file, and ftp it to CollectionHQ
+    circ_csv = run_query(circ_query,circ_file)
+    ftp_file(circ_csv)
+    bibs_csv = run_query(bibs_query,bibs_file)
+    ftp_file(bibs_csv)
+    items_csv = run_query(items_query,items_file)
     ftp_file(items_csv)
       
 # run main function and send error email to admin of script encounters an error

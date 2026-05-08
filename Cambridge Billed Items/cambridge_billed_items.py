@@ -287,7 +287,7 @@ if __name__ == "__main__":
         emailto = config_recipient["script_error"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
-        email_subject = "annual reports: record count script error"
+        email_subject = "Cambridge Billed Items Report script error"
         email_message = (
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )
