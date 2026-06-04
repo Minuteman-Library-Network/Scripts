@@ -22,16 +22,35 @@ from datetime import date
 import traceback
 
 #connect to Sierra-db and store results of an sql query
-def runquery(location):
-
-    # import configuration file containing our connection string
-    # config.ini looks like the following
-    #[sql]
-    #connection_string = dbname='iii' user='PUT_USERNAME_HERE' host='sierra-db.library-name.org' password='PUT_PASSWORD_HERE' port=1032
-
+def run_query(query):
+    # read config file with database login details
     config = configparser.ConfigParser()
-    config.read('C:\\Scripts\\Creds\\config.ini')
-    
+    config.read("C:\\Scripts\\Creds\\config.ini")
+
+    # Connecting to PostgreSQL database
+    try:
+        conn = psycopg2.connect(config["sql"]["connection_string"])
+    except psycopg2.Error as e:
+        print("Unable to connect to database: " + str(e))
+
+    # Opening a session and querying the database
+    cursor = conn.cursor()
+    cursor.execute(query)
+    # Storing the results in a variable. We'll use it later.
+    rows = cursor.fetchall()
+    # close database connection
+    conn.close()
+    # return variable containing query results
+    return rows
+
+'''
+convert sql query results into formatted excel file
+unlike similar functions in other scripts, runquery is called within excelWriter
+'''
+def excel_writer():
+    #Name of Excel File
+    excelfile =  '/Scripts/Cambridge Checkouts By Scat/Temp Files/CAMCheckoutsByScat{}.xlsx'.format(date.today())
+
     query = r"""
             SELECT
 			t.transaction_gmt::DATE AS date,
@@ -54,7 +73,7 @@ def runquery(location):
 			ON
 			t.item_record_id = i.id
 			AND i.icode1 IN ('165','166','167','168','170','171','172','180','185','186')
-			AND i.location_code = """ + location + """
+			AND i.location_code = '{}'
             WHERE
 			t.op_code = 'o'
 			AND
@@ -63,30 +82,6 @@ def runquery(location):
 			GROUP BY 1
 			ORDER BY 1
             """
-      
-    try:
-	    # variable connection string should be defined in the imported config file
-        conn = psycopg2.connect( config['sql']['connection_string'] )
-    except:
-        print("unable to connect to the database")
-        clear_connection()
-        return
-        
-    #Opening a session and querying the database for weekly new items
-    cursor = conn.cursor()
-    cursor.execute(query)
-    #For now, just storing the data in a variable. We'll use it later.
-    rows = cursor.fetchall()
-    conn.close()
-    
-    return rows
-'''
-convert sql query results into formatted excel file
-unlike similar functions in other scripts, runquery is called within excelWriter
-'''
-def excelWriter():
-    #Name of Excel File
-    excelfile =  '/Scripts/Cambridge Billed Items/Temp Files/CAMCheckoutsByScat{}.xlsx'.format(date.today())
 
     #Creating the Excel file for staff
     workbook = xlsxwriter.Workbook(excelfile,{'remove_timezone': True})
@@ -97,6 +92,7 @@ def excelWriter():
     worksheet4 = workbook.add_worksheet('cam7')
     worksheet5 = workbook.add_worksheet('cam8')
     worksheet6 = workbook.add_worksheet('cam9')
+    worksheet7 = workbook.add_worksheet('holdings')
 
     #Formatting our Excel worksheet
     worksheet.set_landscape()
@@ -192,6 +188,14 @@ def excelWriter():
     worksheet6.set_column(9,9,8.43)
     worksheet6.set_column(10,10,8.43)
     worksheet6.set_column(11,11,8.43)
+    worksheet7.set_column(0,0,10.67)
+    worksheet7.set_column(1,1,8.43)
+    worksheet7.set_column(2,2,8.43)
+    worksheet7.set_column(3,3,8.43)
+    worksheet7.set_column(4,4,8.43)
+    worksheet7.set_column(5,5,8.43)
+    worksheet7.set_column(6,6,8.43)
+    worksheet7.set_column(7,7,8.43)
 
     #Inserting a header
     worksheet.set_header('Cam Monthly Checkouts By Scat')
@@ -281,9 +285,17 @@ def excelWriter():
     worksheet6.write(0,9,'Scat 185', eformatlabel)
     worksheet6.write(0,10,'Scat 186', eformatlabel)
     worksheet6.write(0,11,'Total', eformatlabel)
+    worksheet7.write(0,0,'Scat Code', eformatlabel)
+    worksheet7.write(0,1,'camn', eformatlabel)
+    worksheet7.write(0,2,'ca4nn', eformatlabel)
+    worksheet7.write(0,3,'ca5nn', eformatlabel)
+    worksheet7.write(0,4,'ca6nn', eformatlabel)
+    worksheet7.write(0,5,'ca7nn', eformatlabel)
+    worksheet7.write(0,6,'ca8nn', eformatlabel)
+    worksheet7.write(0,7,'ca9nn', eformatlabel)
 
     # Writing the report for staff to the Excel worksheet
-    for rownum, row in enumerate(runquery("'camnn'")):
+    for rownum, row in enumerate(run_query(query.format('camnn'))):
         worksheet.write(rownum+1,0,row[0], dateformat)
         worksheet.write(rownum+1,1,row[1], eformat)
         worksheet.write(rownum+1,2,row[2], eformat)
@@ -296,7 +308,7 @@ def excelWriter():
         worksheet.write(rownum+1,9,row[9], eformat)
         worksheet.write(rownum+1,10,row[10], eformat)
         worksheet.write(rownum+1,11,row[11], eformat)
-    for rownum, row in enumerate(runquery("'ca4nn'")):
+    for rownum, row in enumerate(run_query(query.format('ca4nn'))):
         worksheet1.write(rownum+1,0,row[0], dateformat)
         worksheet1.write(rownum+1,1,row[1], eformat)
         worksheet1.write(rownum+1,2,row[2], eformat)
@@ -309,7 +321,7 @@ def excelWriter():
         worksheet1.write(rownum+1,9,row[9], eformat)
         worksheet1.write(rownum+1,10,row[10], eformat)
         worksheet1.write(rownum+1,11,row[11], eformat)
-    for rownum, row in enumerate(runquery("'ca5nn'")):
+    for rownum, row in enumerate(run_query(query.format('ca5nn'))):
         worksheet2.write(rownum+1,0,row[0], dateformat)
         worksheet2.write(rownum+1,1,row[1], eformat)
         worksheet2.write(rownum+1,2,row[2], eformat)
@@ -322,7 +334,7 @@ def excelWriter():
         worksheet2.write(rownum+1,9,row[9], eformat)
         worksheet2.write(rownum+1,10,row[10], eformat)
         worksheet2.write(rownum+1,11,row[11], eformat)
-    for rownum, row in enumerate(runquery("'ca6nn'")):
+    for rownum, row in enumerate(run_query(query.format('ca6nn'))):
         worksheet3.write(rownum+1,0,row[0], dateformat)
         worksheet3.write(rownum+1,1,row[1], eformat)
         worksheet3.write(rownum+1,2,row[2], eformat)
@@ -335,7 +347,7 @@ def excelWriter():
         worksheet3.write(rownum+1,9,row[9], eformat)
         worksheet3.write(rownum+1,10,row[10], eformat)
         worksheet3.write(rownum+1,11,row[11], eformat)
-    for rownum, row in enumerate(runquery("'ca7nn'")):
+    for rownum, row in enumerate(run_query(query.format('ca7nn'))):
         worksheet4.write(rownum+1,0,row[0], dateformat)
         worksheet4.write(rownum+1,1,row[1], eformat)
         worksheet4.write(rownum+1,2,row[2], eformat)
@@ -348,7 +360,7 @@ def excelWriter():
         worksheet4.write(rownum+1,9,row[9], eformat)
         worksheet4.write(rownum+1,10,row[10], eformat)
         worksheet4.write(rownum+1,11,row[11], eformat)
-    for rownum, row in enumerate(runquery("'ca8nn'")):
+    for rownum, row in enumerate(run_query(query.format('ca8nn'))):
         worksheet5.write(rownum+1,0,row[0], dateformat)
         worksheet5.write(rownum+1,1,row[1], eformat)
         worksheet5.write(rownum+1,2,row[2], eformat)
@@ -361,7 +373,7 @@ def excelWriter():
         worksheet5.write(rownum+1,9,row[9], eformat)
         worksheet5.write(rownum+1,10,row[10], eformat)
         worksheet5.write(rownum+1,11,row[11], eformat)
-    for rownum, row in enumerate(runquery("'ca9nn'")):
+    for rownum, row in enumerate(run_query(query.format('ca9nn'))):
         worksheet6.write(rownum+1,0,row[0], dateformat)
         worksheet6.write(rownum+1,1,row[1], eformat)
         worksheet6.write(rownum+1,2,row[2], eformat)
@@ -373,7 +385,40 @@ def excelWriter():
         worksheet6.write(rownum+1,8,row[8], eformat)
         worksheet6.write(rownum+1,9,row[9], eformat)
         worksheet6.write(rownum+1,10,row[10], eformat)
-        worksheet6.write(rownum+1,11,row[11], eformat)
+        worksheet6.write(rownum+1,11,row[11], eformat)   
+    query2 =  r"""
+              SELECT
+                i.icode1 AS scat_code,
+                COUNT(i.id) FILTER (WHERE i.location_code ~ '^camnn') AS camnn,
+                COUNT(i.id) FILTER (WHERE i.location_code ~ '^ca4nn') AS ca4nn,
+                COUNT(i.id) FILTER (WHERE i.location_code ~ '^ca5nn') AS ca5nn,
+                COUNT(i.id) FILTER (WHERE i.location_code ~ '^ca6nn') AS ca6nn,
+                COUNT(i.id) FILTER (WHERE i.location_code ~ '^ca7nn') AS ca7nn,
+                COUNT(i.id) FILTER (WHERE i.location_code ~ '^ca8nn') AS ca8nn,
+                COUNT(i.id) FILTER (WHERE i.location_code ~ '^ca9nn') AS ca9nn
+              
+              FROM sierra_view.item_record i
+              JOIN sierra_view.bib_record_item_record_link l
+                ON i.id = l.item_record_id
+              JOIN sierra_view.record_metadata rm
+                ON l.bib_record_id = rm.id
+
+              WHERE i.location_code ~ '^ca(m|4|5|6|7|8|9)nn'
+                AND i.icode1 IN ('165','166','167','168','170','171','172','180','185','186')
+                AND rm.record_type_code||rm.record_num != 'b4147440'
+
+              GROUP BY 1
+              ORDER BY 1
+              """
+    for rownum, row in enumerate(run_query(query2)):
+        worksheet7.write(rownum+1,0,row[0], eformat)
+        worksheet7.write(rownum+1,1,row[1], eformat)
+        worksheet7.write(rownum+1,2,row[2], eformat)
+        worksheet7.write(rownum+1,3,row[3], eformat)
+        worksheet7.write(rownum+1,4,row[4], eformat)
+        worksheet7.write(rownum+1,5,row[5], eformat)
+        worksheet7.write(rownum+1,6,row[6], eformat)
+        worksheet7.write(rownum+1,7,row[7], eformat)
      
     workbook.close()
     return excelfile
@@ -461,7 +506,7 @@ def send_email_error(subject, message, recipient):
     
 def main():
 	
-    excel_file = excelWriter()
+    excel_file = excel_writer()
 
     # send email
     email_subject = "Cambridge Monthly Checkouts By Scat"
@@ -474,7 +519,6 @@ def main():
     # delete local file
     os.remove(excel_file)
 
-
 # run main function and send error email to admin of script encounters an error
 if __name__ == "__main__":
     try:
@@ -486,7 +530,7 @@ if __name__ == "__main__":
         emailto = config_recipient["script_error"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
-        email_subject = "annual reports: record count script error"
+        email_subject = "CAM Checkouts by Scat script error"
         email_message = (
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )

@@ -131,7 +131,7 @@ def main():
         ON p.id = n.patron_record_id
       WHERE p.expiration_date_gmt::DATE = (CURRENT_DATE + INTERVAL '30 days')
       AND p.ptype_code IN('26', '27', '29', '129', '30', '121', '122', '130', '46', '31', '32', '133', '33', '34', '326', '327', '329', '330', '346', '331', '332', '333', '334') 
-      GROUP BY 5, 4
+      GROUP BY 5,4
       """
 
     query_results = run_query(query)

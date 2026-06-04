@@ -151,7 +151,7 @@ def main():
     # enable creds file for referencing GSheets IDs
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
-
+    
     # query to gather total fines assessed for each checkout location the prior day
     fines_assessed_query = """
       SELECT
@@ -451,7 +451,7 @@ def main():
     checkout_value = runquery(checkout_value_query)
     checkout_value_parsed = parse_pg_data(checkout_value)
     appendToSheet(config["gsheet"]["checkout_value"], checkout_value_parsed)
-
+    
     # query to gather daily counts of holds on hold, in transit or on holdshelf at each location
     daily_holds_query = """
       SELECT
