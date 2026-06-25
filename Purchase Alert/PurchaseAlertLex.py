@@ -571,7 +571,7 @@ def sftp_file(local_file, library):
         fullpath = (
             "/reports/Library-Specific Reports/"
             + library
-            + "/Collection Development By Scat/{}".format(fname.filename)
+            + "/Purchase Alert/{}".format(fname.filename)
         )
         # time tracked in seconds, st_mtime is time last modified
         name = str(fname.filename)
