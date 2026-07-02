@@ -16,6 +16,7 @@ import os
 import pysftp
 import configparser
 from datetime import date
+import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -66,22 +67,20 @@ def sftp_file(file, library):
     [orangeboy]
     host = ftp.xxx.xxx
     user_abc = username
+    key_abc = C:/users//MyUser//.ssh/keyfile
     """
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    #define path to private key file
-    path = 'C:\\Users\\sqladmin\\.ssh\\id_rsa'
     # set connection option to disable check for host key
     cnopts = pysftp.CnOpts()
     cnopts.hostkeys = None
-
+    
     # open sftp connection
     srv = pysftp.Connection(
         host=config["orangeboy"]["host"],
         username=config["orangeboy"]["user_" + library],
-        # password=config["orangeboy"]["pw_" + library],
-        private_key=path,
+        private_key=config["orangeboy"]["key_" + library],
         cnopts=cnopts,
     )
     # upload specified file to root directory

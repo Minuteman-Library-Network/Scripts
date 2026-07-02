@@ -4,7 +4,7 @@ Take bills notice job txt file from Sierra and divides into word docs by library
 formatted for mailing, then uploads file to ftp server
 
 Run on Demand
-run in SIC
+run in py313
 """
 
 import re
