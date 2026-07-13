@@ -1,0 +1,141 @@
+"""
+Jeremy Goldstein
+Minuteman Library Network
+Sends email alert to designated staff to inform them of a newly available report located
+on our staff site.  Script schedule to run after the one producing that report.
+"""
+
+import smtplib
+import configparser
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email.utils import formatdate
+from email import encoders
+from datetime import date
+import traceback
+
+# function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
+def send_email(subject, message_text, message_html, recipient):
+    # read config file with Sierra login credentials
+    config = configparser.ConfigParser()
+    config.read("C:\\Scripts\\Creds\\config.ini")
+
+    # These are variables for the email that will be sent.
+    # Make sure to use your own library's email server (emailhost)
+    emailhost = config["email"]["host"]
+    emailuser = config["email"]["user"]
+    emailpass = config["email"]["pw"]
+    emailport = config["email"]["port"]
+    emailfrom = config["email"]["sender"]
+
+    # Creating the email message with html and plaintxt options
+    msg = MIMEMultipart("alternative")
+    part1 = MIMEText(message_text, "plain")
+    part2 = MIMEText(message_html, "html")
+    msg["From"] = emailfrom
+    if type(recipient) is list:
+        msg["To"] = ", ".join(recipient)
+    else:
+        msg["To"] = recipient
+    msg["Date"] = formatdate(localtime=True)
+    msg["Subject"] = subject
+    msg.attach(part1)
+    msg.attach(part2)
+
+    # Sending the email message
+    smtp = smtplib.SMTP(emailhost, emailport)
+    # for Gmail connection used within Minuteman
+    smtp.ehlo()
+    smtp.starttls()
+    smtp.login(emailuser, emailpass)
+    smtp.sendmail(emailfrom, recipient, msg.as_string())
+    smtp.quit()
+
+
+# function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
+def send_email_error(subject, message, recipient):
+    # read config file with Sierra login credentials
+    config = configparser.ConfigParser()
+    config.read("C:\\Scripts\\Creds\\config.ini")
+
+    # These are variables for the email that will be sent.
+    # Make sure to use your own library's email server (emailhost)
+    emailhost = config["email"]["host"]
+    emailuser = config["email"]["user"]
+    emailpass = config["email"]["pw"]
+    emailport = config["email"]["port"]
+    emailfrom = config["email"]["sender"]
+
+    # Creating the email message
+    msg = MIMEMultipart()
+    emailmessage = message
+    msg["From"] = emailfrom
+    if type(recipient) is list:
+        msg["To"] = ", ".join(recipient)
+    else:
+        msg["To"] = recipient
+    msg["Date"] = formatdate(localtime=True)
+    msg["Subject"] = subject
+    msg.attach(MIMEText(emailmessage))
+
+    # Sending the email message
+    smtp = smtplib.SMTP(emailhost, emailport)
+    # for Gmail connection used within Minuteman
+    smtp.ehlo()
+    smtp.starttls()
+    smtp.login(emailuser, emailpass)
+    smtp.sendmail(emailfrom, recipient, msg.as_string())
+    smtp.quit()
+
+def main():
+
+    # read config file with Sierra login credentials
+    config = configparser.ConfigParser()
+    config.read("C:\\Scripts\\Creds\\emails.ini")
+
+    emailto = config["sherborn_new_patrons_with_data_errors"]["recipients"].split()
+    emailsubject = "The Monthly New Patrons With Data Errors Report is ready"
+    email_text = '''The monthly New Patrons With Data Errors Report is now ready.
+You may download this month's report at https://sic.minlib.net/reports/static?path=%2Freports%2FLibrary-Specific%20Reports%2FSherborn%2FNew%20Patrons%20with%20Data%20Errors.
+    
+***This is an automated email  Do not reply***'''
+
+    email_html = html = '''
+<html>
+<head></head>
+<body style="background-color:#FFFFFF;">
+<table style="width: 70%; margin-left: 15%; margin-right: 15%; border: 0; cellspacing: 0; cellpadding: 0; background-color: #FFFFFF;">
+<tr>
+<font face="Scala Sans, Calibri, Arial"; size="3">
+<p>The monthly New Patrons With Data Errors Report is now ready.<br>
+You may download this month's report <a href="https://sic.minlib.net/reports/static?path=%2Freports%2FLibrary-Specific%20Reports%2FSherborn%2FNew%20Patrons%20with%20Data%20Errors">via this link</a>.<br><br>
+***This is an automated email.  Do not reply.***<br><br>
+</font>
+</p>
+<img src="https://www.minlib.net/sites/default/files/glazed_builder_images/logo-print-small.jpg" style="height: 32px; width: 188px; display: block; margin-left: auto; margin-right: auto;" alt="Minuteman logo">
+</tr>
+</table>
+</body>  
+</html>'''
+    
+    send_email(emailsubject, email_text, email_html, emailto)
+
+# run main function and send error email to admin of script encounters an error
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        # read config file with recipient list for email
+        config_recipient = configparser.ConfigParser()
+        config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
+        emailto = config_recipient["script_error"]["recipients"].split()
+
+        # craft email subject and message containing error message details from traceback
+        email_subject = "New Patrons With Data Errors SHR email"
+        email_message = (
+            "Your script failed with the following error:\n\n" + traceback.format_exc()
+        )
+
+        send_email_error(email_subject, email_message, emailto)
+        raise

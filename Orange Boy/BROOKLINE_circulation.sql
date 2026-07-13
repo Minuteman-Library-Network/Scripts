@@ -6,7 +6,6 @@ SELECT
   o.stat_group_code_num AS checkout_location,
   i.location_code AS item_location,
   o.transaction_gmt AS checkout_time,
-  C.renewal_count AS renewals,
   o.due_date_gmt AS duedate
 
 FROM sierra_view.circ_trans o
@@ -22,10 +21,6 @@ JOIN sierra_view.bib_record_property bp
   ON l.bib_record_id = bp.bib_record_id
 JOIN sierra_view.item_record i
   ON o.item_record_id = i.id
-LEFT JOIN sierra_view.checkout C
-  ON o.item_record_id = C.item_record_id
-  AND o.patron_record_id = C.patron_record_id
-  AND o.transaction_gmt = C.checkout_gmt
 
 WHERE o.op_code = 'o'
   AND o.ptype_code IN ('6','106','306')
