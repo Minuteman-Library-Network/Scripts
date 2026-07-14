@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-#!/usr/bin/env python3
-
 #Run in py313
 """
 Jeremy Goldstein
@@ -275,7 +273,9 @@ def send_email_error(subject, message, recipient):
     
 def main(library,libcode,ptypes,ma_town = None):
     try:
-        
+        ma_town_filter = ""
+        if ma_town:
+            ma_town_filter = "OR p.pcode3 != '{}'".format(ma_town)
         query = r"""
         SELECT
           id2reckey(p.id)||'a' AS record_num,
@@ -309,13 +309,13 @@ def main(library,libcode,ptypes,ma_town = None):
           AND p.ptype_code IN %s
           AND (
             (p.home_library_code !~ 'z$' AND p.home_library_code IS NOT NULL) --failed to use pickup location code
-            OR p.pcode3 != '116' --ma town does not match ptype
+        """ + ma_town_filter + """--ma town does not match ptype, excluded for academic libraries
             OR a.addr1 IS NULL
             OR a.addr1 !~'^[\dPp]'--address doesn't start with a # or PO
             OR a.city IS NULL
             OR (a.postal_code !~ '^\d{5}' AND a.postal_code !~'^\d{5}([\-]\d{4})') --zipcode not ##### or #####-####
             OR p.barcode IS NULL
-            OR (p.barcode !~ '^\d{14}' AND p.ptype_code != '337') --barcode not 14 digits
+            OR (p.barcode !~ '^\d{14}' AND p.ptype_code < '301') --barcode not 14 digits
             OR (t.phone_number IS NOT NULL AND (t.phone_number !~'^\d{3}[\-]\d{3}[\-]\d{4}' AND t.phone_number !~'^\d{3}[ ]\d{3}[ ]\d{4}')) -- phone not ###-###-#### or ### ### ####
             OR (u.phone_number IS NOT NULL AND (u.phone_number !~'^\d{3}[\-]\d{3}[\-]\d{4}' AND u.phone_number !~'^\d{3}[ ]\d{3}[ ]\d{4}')) -- alt phone not ###-###-#### or ### ### ####
             )

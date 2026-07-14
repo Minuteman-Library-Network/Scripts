@@ -504,7 +504,7 @@ def main():
     in_transit_snapshot = runquery(in_transit_snapshot_query)
     in_transit_snapshot_parsed = parse_pg_data(in_transit_snapshot)
     appendToSheet(config["gsheet"]["in_transit_snapshot"], in_transit_snapshot_parsed)
-    
+
     # query to gather total fines assessed for each checkout location the prior day
     fines_assessed_query = """
       SELECT
@@ -567,13 +567,13 @@ def main():
       --Account for days with 0 assessed fines
       UNION ALL
       SELECT
-		  TO_CHAR(CURRENT_DATE - INTERVAL '1 day','YYYY-MM-DD'),
-		  '',
-		  0,
-		  0::MONEY
-		WHERE NOT EXISTS (SELECT id FROM sierra_view.fine f WHERE f.assessed_gmt::DATE = CURRENT_DATE - INTERVAL '1 day')
+		    TO_CHAR(CURRENT_DATE - INTERVAL '1 day','YYYY-MM-DD'),
+		    '',
+		    0,
+		    0::MONEY
+		  WHERE NOT EXISTS (SELECT id FROM sierra_view.fine f WHERE f.assessed_gmt::DATE = CURRENT_DATE - INTERVAL '1 day')
 		
-	  ORDER BY 1,2
+	    ORDER BY 1,2
       """
 
     # run query and append results to specified GSheet

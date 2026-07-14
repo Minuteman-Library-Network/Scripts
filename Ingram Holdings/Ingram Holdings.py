@@ -89,7 +89,7 @@ def marc_writer(query_data, marc_file):
 
 # function to sftp a specified file
 def sftp_file(file, library):
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(interpolation=None)
     config.read("C:\\Scripts\\Creds\\config.ini")
 
     # set connection option to disable check for host key
@@ -100,7 +100,7 @@ def sftp_file(file, library):
     srv = pysftp.Connection(
         host=config["ingram"]["host"],
         username=config["ingram"]["user_" + library],
-        password=config["ingram"]["pw_" + library],
+        password=config.get("ingram","pw_" + library,raw=True),
         cnopts=cnopts,
     )
     # upload specified file to root directory
@@ -191,7 +191,6 @@ if __name__ == "__main__":
     main("con")
     main("fpl")
     main("nor")
-    main("som")
+    # main("som")
     main("win")
-    
     

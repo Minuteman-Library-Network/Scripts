@@ -1,9 +1,9 @@
-"""
+'''
 Jeremy Goldstein
 Minuteman Library Network
 Sends email alert to designated staff to inform them of a newly available report located
 on our staff site.  Script schedule to run after the one producing that report.
-"""
+'''
 
 import smtplib
 import configparser

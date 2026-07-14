@@ -666,7 +666,10 @@ def main():
 '4043930',
 '1496306',
 '2505796',
-'2343271'
+'2343271',
+'2195409',
+'2247780',
+'2259190'
               )
             GROUP BY 1, 2
             HAVING MAX(rmi.creation_date_gmt::DATE) >= CURRENT_DATE - INTERVAL '1 year'
