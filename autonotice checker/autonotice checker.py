@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 
-# Run in py313
-
+#Run in py313
 """
-Create and email a list of locked order records to a designated staff member with the permission to unlock them
+Jeremy Goldstein
+Minuteman Library Network
 
-Author: Jeremy Goldstein
-Contact Info: jgoldstein@minlib.net
+Generates an email alert in the event that no autorenewals were triggered overnight
+This serves as an indicator of a larger cron job failure as notices did not run and possibly other tasks
 """
 
 import psycopg2
-import configparser
 import csv
+import configparser
 import smtplib
-import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -21,7 +20,6 @@ from email.utils import formatdate
 from email import encoders
 from datetime import date
 import traceback
-
 
 # function takes a sql query as a parameter, connects to a database and returns the results
 def run_query(query):
@@ -31,7 +29,7 @@ def run_query(query):
 
     # Connecting to PostgreSQL database
     try:
-        conn = psycopg2.connect(config["sql"]["connection_string"])
+        conn = psycopg2.connect(config["test_sql"]["connection_string"])
     except psycopg2.Error as e:
         print("Unable to connect to database: " + str(e))
 
@@ -40,33 +38,14 @@ def run_query(query):
     cursor.execute(query)
     # Storing the results in a variable. We'll use it later.
     rows = cursor.fetchall()
-    # Gather column headers, which are not included in cursor.fetchall() and store in another variable
-    columns = [i[0] for i in cursor.description]
     # close database connection
     conn.close()
     # return variables containing query results and column headers
-    return rows, columns
-
-# function takes the results of a query and converts them to a csv file
-def write_csv(query_results, headers):
-    # provide a name for the csv file and save the file to a variable
-    csvfile = "/Scripts/Locked Order Records/Temp Files/locked_order_records{}.csv".format(
-        date.today()
-    )
-
-    # open csvfile in write mode and add a row to it for the headers and each line of query_results
-    with open(csvfile, "w", encoding="utf-8", newline="") as tempFile:
-        myFile = csv.writer(tempFile, delimiter=",")
-        myFile.writerow(headers)
-        myFile.writerows(query_results)
-    tempFile.close()
-    # return variable containing the newly created csv file
-    return csvfile
-
+    return rows
 
 
 # function takes a file as a parameter and attaches that file to an outgoing email
-def send_email(subject, message, attachment):
+def send_email(subject, message, recipient):
     # read config file with credentials for email account
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
@@ -80,36 +59,28 @@ def send_email(subject, message, attachment):
     emailpass = config["email"]["pw"]
     emailport = config["email"]["port"]
     emailfrom = config["email"]["sender"]
-    emailto = config_recipient["locked_orders"]["recipients"].split()
     # plain text of email message
     emailmessage = message
 
     # Creating the email message
     msg = MIMEMultipart()
     msg["From"] = emailfrom
-    if type(emailto) is list:
-        msg["To"] = ", ".join(emailto)
+    if type(recipient) is list:
+        msg["To"] = ", ".join(recipient)
     else:
-        msg["To"] = emailto
+        msg["To"] = recipient
     msg["Date"] = formatdate(localtime=True)
     msg["Subject"] = subject
     msg.attach(MIMEText(emailmessage))
-    part = MIMEBase("application", "octet-stream")
-    part.set_payload(open(attachment, "rb").read())
-    encoders.encode_base64(part)
-    part.add_header(
-        "Content-Disposition", "attachment; filename=%s" % attachment.rsplit("/", 1)[-1]
-    )
-    msg.attach(part)
 
     # Sending the email message
     smtp = smtplib.SMTP(emailhost, emailport)
+    # for Gmail connection used within Minuteman
     smtp.ehlo()
     smtp.starttls()
     smtp.login(emailuser, emailpass)
-    smtp.sendmail(emailfrom, emailto, msg.as_string())
+    smtp.sendmail(emailfrom, recipient, msg.as_string())
     smtp.quit()
-
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
 def send_email_error(subject, message, recipient):
@@ -146,45 +117,37 @@ def send_email_error(subject, message, recipient):
     smtp.sendmail(emailfrom, recipient, msg.as_string())
     smtp.quit()
 
-
 def main():
-    # query to identify patron records with incorrect owed_amt fields
+    # read config file with recipient list for email
+    config_recipient = configparser.ConfigParser()
+    config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
+    
+	# query to provide a binary value for if notices ran or not, based on the presence of autorenewals
     query = r"""
-           SELECT
-             m.record_type_code||m.record_num||'a' AS onumber,
-             m.record_last_updated_gmt,
-             o.accounting_unit_code_num
+            SELECT
+	          CASE
+                WHEN COUNT(t.id) = 0 THEN FALSE
+                ELSE TRUE
+              END AS notices_ran
 
-           FROM sierra_view.record_lock r
-           JOIN sierra_view.record_metadata m
-             ON m.id = r.id
-           JOIN sierra_view.order_record o
-             ON m.id = o.id
+            FROM sierra_view.circ_trans t
 
-           --omit records that are likely locked from being in a payment session
-           WHERE NOT EXISTS (
-             SELECT 
-               i.order_record_metadata_id
-             FROM sierra_view.invoice_record_line i
-             WHERE i.order_record_metadata_id = o.id
-           )
-           ORDER BY 2
-           """
-    query_results, headers = run_query(query)
+            WHERE t.op_code = 'r'
+			  AND t.application_name = 'autonotices' 
+			  AND t.transaction_gmt::DATE = CURRENT_DATE
+            """
+    query_results = run_query(query)
+		
+    for rownum, row in enumerate(query_results):
+        if row[0] == False:
+            email_subject = '0 Autorenewals'
+            email_message = '''***This is an automated email***
 
-    # generate csv file from those query results
-    local_file = write_csv(query_results, headers)
-
-    # send email with attached file
-    email_subject = "locked order records"
-    email_message = """***This is an automated email***
-    
-    
-    The locked order record report has been attached."""
-    send_email(email_subject, email_message, local_file)
-
-    # delete csv file once email has been sent
-    os.remove(local_file)
+There were no items autorenewed on {}'''.format(str(date.today()))
+            
+            send_email(email_subject,email_message,config_recipient["autonotice_checker"]["recipients"].split())
+        else:
+            break
 
 
 # run main function and send error email to admin of script encounters an error
@@ -195,10 +158,10 @@ if __name__ == "__main__":
         # read config file with recipient list for email
         config_recipient = configparser.ConfigParser()
         config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
-        emailto = config_recipient["script_error"]["recipients"].split()
+        emailto = config_recipient["script_error_extended"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
-        email_subject = "locked order records script error"
+        email_subject = "Autonotice Checker script error"
         email_message = (
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )
