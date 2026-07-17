@@ -5,7 +5,7 @@
 Jeremy Goldstein
 Minuteman Library Network
 
-Generates on the turnover rate for a number of 
+Generates report on the turnover rate for a number of 
 defined collections at the Concord/Free Public Library's Fowler Branch
 """
 

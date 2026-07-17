@@ -5,12 +5,12 @@
 Jeremy Goldstein
 Minuteman Library Network
 
-Generates an email alert in the event that no autorenewals were triggered overnight
-This serves as an indicator of a larger cron job failure as notices did not run and possibly other tasks
+Generates monthly report on patrons with possibly invalid email addresses
 """
 
 import psycopg2
-import csv
+import xlsxwriter
+import os
 import configparser
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -20,6 +20,7 @@ from email.utils import formatdate
 from email import encoders
 from datetime import date
 import traceback
+
 
 # function takes a sql query as a parameter, connects to a database and returns the results
 def run_query(query):
@@ -44,8 +45,48 @@ def run_query(query):
     return rows
 
 
+# convert sql query results into formatted excel file
+def excel_writer(query_results, excel_file):
+    
+    # Creating the Excel file for staff
+    workbook = xlsxwriter.Workbook(excel_file)
+    worksheet = workbook.add_worksheet()
+
+
+    # Formatting our Excel worksheet
+    worksheet.set_landscape()
+    worksheet.hide_gridlines(0)
+
+    # Formatting Cells
+    eformat= workbook.add_format({'text_wrap': True, 'valign': 'top'})
+    eformatlabel= workbook.add_format({'text_wrap': True, 'valign': 'top', 'bold': True})
+
+
+    # Setting the column widths
+    worksheet.set_column(0,0,13.57)
+    worksheet.set_column(1,1,16.43)
+    worksheet.set_column(2,2,60)
+
+    #Inserting a header
+    worksheet.set_header('E-Mail Field Problem Report')
+
+    # Adding column labels
+    worksheet.write(0,0,'Record_Num', eformatlabel)
+    worksheet.write(0,1,'Barcode', eformatlabel)
+    worksheet.write(0,2,'E-Mail', eformatlabel)
+
+    # Writing the report for staff to the Excel worksheet
+    for rownum, row in enumerate(query_results):
+        worksheet.write(rownum+1,0,row[0], eformat)
+        worksheet.write(rownum+1,1,row[1], eformat)
+        worksheet.write(rownum+1,2,row[2], eformat)
+    
+    
+    workbook.close()
+
+
 # function takes a file as a parameter and attaches that file to an outgoing email
-def send_email(subject, message, recipient):
+def send_email(subject, message, attachment):
     # read config file with credentials for email account
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
@@ -59,27 +100,34 @@ def send_email(subject, message, recipient):
     emailpass = config["email"]["pw"]
     emailport = config["email"]["port"]
     emailfrom = config["email"]["sender"]
+    emailto = config_recipient["invalid_emails"]["recipients"].split()
     # plain text of email message
     emailmessage = message
 
     # Creating the email message
     msg = MIMEMultipart()
     msg["From"] = emailfrom
-    if type(recipient) is list:
-        msg["To"] = ", ".join(recipient)
+    if type(emailto) is list:
+        msg["To"] = ", ".join(emailto)
     else:
-        msg["To"] = recipient
+        msg["To"] = emailto
     msg["Date"] = formatdate(localtime=True)
     msg["Subject"] = subject
     msg.attach(MIMEText(emailmessage))
+    part = MIMEBase("application", "octet-stream")
+    part.set_payload(open(attachment, "rb").read())
+    encoders.encode_base64(part)
+    part.add_header(
+        "Content-Disposition", "attachment; filename=%s" % attachment.rsplit("/", 1)[-1]
+    )
+    msg.attach(part)
 
     # Sending the email message
     smtp = smtplib.SMTP(emailhost, emailport)
-    # for Gmail connection used within Minuteman
     smtp.ehlo()
     smtp.starttls()
     smtp.login(emailuser, emailpass)
-    smtp.sendmail(emailfrom, recipient, msg.as_string())
+    smtp.sendmail(emailfrom, emailto, msg.as_string())
     smtp.quit()
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
@@ -117,37 +165,46 @@ def send_email_error(subject, message, recipient):
     smtp.sendmail(emailfrom, recipient, msg.as_string())
     smtp.quit()
 
+
 def main():
-    # read config file with recipient list for email
-    config_recipient = configparser.ConfigParser()
-    config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
+    # query to identify bills from the past week for childrens items belonging to Cambridge
+    query = """
+    SELECT
+      rm.record_type_code||rm.record_num||'a' AS record_num,
+      b.index_entry AS barcode,
+      v.field_content AS email
+
+    FROM sierra_view.patron_record p
+    JOIN sierra_view.varfield v		
+      ON p.id = v.record_id
+      AND v.varfield_type_code = 'z'
+    JOIN sierra_view.record_metadata rm
+      ON p.id = rm.id
+    JOIN sierra_view.phrase_entry b
+      ON p.id = b.record_id
+      AND b.varfield_type_code = 'b'
+
+    WHERE v.field_content IS NOT NULL
+      AND v.field_content !~ '(\@[a-zA-Z0-9\-]+\.[a-zA-Z0-9\-\.]+$)'
+    ORDER BY 1
+    """
     
-	# query to provide a binary value for if notices ran or not, based on the presence of autorenewals
-    query = r"""
-            SELECT
-	          CASE
-                WHEN COUNT(t.id) = 0 THEN FALSE
-                ELSE TRUE
-              END AS notices_ran
-
-            FROM sierra_view.circ_trans t
-
-            WHERE t.op_code = 'r'
-			  AND t.application_name = 'autonotices' 
-			  AND t.transaction_gmt::DATE = CURRENT_DATE
-            """
     query_results = run_query(query)
-		
-    for rownum, row in enumerate(query_results):
-        if row[0] == False:
-            email_subject = '0 Autorenewals'
-            email_message = '''***This is an automated email***
 
-There were no items autorenewed on {}'''.format(str(date.today()))
-            
-            send_email(email_subject,email_message,config_recipient["autonotice_checker"]["recipients"].split())
-        else:
-            break
+    # generate excel file from those query results
+    excel_file = "/Scripts/Invalid E-Mail Fields/Temp Files/InvalidEMailFields{}.xlsx".format(date.today())
+    excel_writer(query_results, excel_file)
+
+    # send email
+    email_subject = "Invalid e-mail fields"
+    email_message = """***This is an automated email***
+
+
+The e-mail Field Problem report has been attached."""
+    send_email(email_subject, email_message, excel_file)
+
+    # delete local file
+    os.remove(excel_file)
 
 
 # run main function and send error email to admin of script encounters an error
@@ -161,7 +218,7 @@ if __name__ == "__main__":
         emailto = config_recipient["script_error_extended"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
-        email_subject = "Autonotice Checker script error"
+        email_subject = "Invalid E-Mail Fields script error"
         email_message = (
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )

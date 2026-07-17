@@ -5,12 +5,13 @@
 Jeremy Goldstein
 Minuteman Library Network
 
-Generates an email alert in the event that no autorenewals were triggered overnight
-This serves as an indicator of a larger cron job failure as notices did not run and possibly other tasks
+Generates weekly report of order records downloaded
+without first applying grid data
 """
 
 import psycopg2
-import csv
+import xlsxwriter
+import os
 import configparser
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -20,6 +21,7 @@ from email.utils import formatdate
 from email import encoders
 from datetime import date
 import traceback
+
 
 # function takes a sql query as a parameter, connects to a database and returns the results
 def run_query(query):
@@ -43,9 +45,49 @@ def run_query(query):
     # return variables containing query results and column headers
     return rows
 
+# convert sql query results into formatted excel file
+def excel_writer(query_results, excel_file):
+    #Creating the Excel file for staff
+    workbook = xlsxwriter.Workbook(excel_file,{'remove_timezone': True})
+    worksheet = workbook.add_worksheet()
+
+
+    # Formatting our Excel worksheet
+    worksheet.set_landscape()
+    worksheet.hide_gridlines(0)
+
+    # Formatting Cells
+    eformat= workbook.add_format({'text_wrap': True, 'valign': 'top'})
+    eformatlabel= workbook.add_format({'text_wrap': True, 'valign': 'top', 'bold': True})
+    eformatlabel2= workbook.add_format({'num_format': 'mm/dd/yy hh:mm'})
+
+    # Setting the column widths
+    worksheet.set_column(0,0,14.43)
+    worksheet.set_column(1,1,7.71)
+    worksheet.set_column(2,2,9.57)
+    worksheet.set_column(3,3,14)
+
+    #Inserting a header
+    worksheet.set_header('orders without grids')
+
+    # Adding column labels
+    worksheet.write(0,0,'Record_number', eformatlabel)
+    worksheet.write(0,1,'Location', eformatlabel)
+    worksheet.write(0,2,'accounting unit', eformatlabel)
+    worksheet.write(0,3,'created date', eformatlabel)
+
+    # Writing the report for staff to the Excel worksheet
+    for rownum, row in enumerate(query_results):
+        worksheet.write(rownum+1,0,row[0], eformat)
+        worksheet.write(rownum+1,1,row[1], eformat)
+        worksheet.write(rownum+1,2,row[2], eformat)
+        worksheet.write_datetime(rownum+1,3,row[3], eformatlabel2)
+    
+    workbook.close()
+
 
 # function takes a file as a parameter and attaches that file to an outgoing email
-def send_email(subject, message, recipient):
+def send_email(subject, message, attachment):
     # read config file with credentials for email account
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
@@ -59,27 +101,34 @@ def send_email(subject, message, recipient):
     emailpass = config["email"]["pw"]
     emailport = config["email"]["port"]
     emailfrom = config["email"]["sender"]
+    emailto = config_recipient["orders_without_grids"]["recipients"].split()
     # plain text of email message
     emailmessage = message
 
     # Creating the email message
     msg = MIMEMultipart()
     msg["From"] = emailfrom
-    if type(recipient) is list:
-        msg["To"] = ", ".join(recipient)
+    if type(emailto) is list:
+        msg["To"] = ", ".join(emailto)
     else:
-        msg["To"] = recipient
+        msg["To"] = emailto
     msg["Date"] = formatdate(localtime=True)
     msg["Subject"] = subject
     msg.attach(MIMEText(emailmessage))
+    part = MIMEBase("application", "octet-stream")
+    part.set_payload(open(attachment, "rb").read())
+    encoders.encode_base64(part)
+    part.add_header(
+        "Content-Disposition", "attachment; filename=%s" % attachment.rsplit("/", 1)[-1]
+    )
+    msg.attach(part)
 
     # Sending the email message
     smtp = smtplib.SMTP(emailhost, emailport)
-    # for Gmail connection used within Minuteman
     smtp.ehlo()
     smtp.starttls()
     smtp.login(emailuser, emailpass)
-    smtp.sendmail(emailfrom, recipient, msg.as_string())
+    smtp.sendmail(emailfrom, emailto, msg.as_string())
     smtp.quit()
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
@@ -118,36 +167,38 @@ def send_email_error(subject, message, recipient):
     smtp.quit()
 
 def main():
-    # read config file with recipient list for email
-    config_recipient = configparser.ConfigParser()
-    config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
-    
-	# query to provide a binary value for if notices ran or not, based on the presence of autorenewals
-    query = r"""
+    # query to identify bills from the past week for childrens items belonging to Cambridge
+    query = """
             SELECT
-	          CASE
-                WHEN COUNT(t.id) = 0 THEN FALSE
-                ELSE TRUE
-              END AS notices_ran
-
-            FROM sierra_view.circ_trans t
-
-            WHERE t.op_code = 'r'
-			  AND t.application_name = 'autonotices' 
-			  AND t.transaction_gmt::DATE = CURRENT_DATE
+              rm.record_type_code||rm.record_num||'a' AS record_number,
+              cmf.location_code,
+              o.accounting_unit_code_num,
+              rm.creation_date_gmt AS created_date
+            FROM sierra_view.order_record o
+            JOIN sierra_view.order_record_cmf cmf
+              ON o.record_id = cmf.order_record_id
+            JOIN sierra_view.record_metadata rm
+              ON o.id = rm.id
+            WHERE
+              cmf.location_code = 'none'
             """
+    
     query_results = run_query(query)
-		
-    for rownum, row in enumerate(query_results):
-        if row[0] == False:
-            email_subject = '0 Autorenewals'
-            email_message = '''***This is an automated email***
 
-There were no items autorenewed on {}'''.format(str(date.today()))
-            
-            send_email(email_subject,email_message,config_recipient["autonotice_checker"]["recipients"].split())
-        else:
-            break
+    # generate excel file from those query results
+    excel_file = "/Scripts/Orders Without Grids/Temp Files/OrdersWithoutGrids{}.xlsx".format(date.today())
+    excel_writer(query_results, excel_file)
+
+    # send email
+    email_subject = "Orders without grids"
+    email_message = """***This is an automated email***
+
+
+The orders without grids report has been attached."""
+    send_email(email_subject, email_message, excel_file)
+
+    # delete local file
+    os.remove(excel_file)
 
 
 # run main function and send error email to admin of script encounters an error
@@ -161,7 +212,7 @@ if __name__ == "__main__":
         emailto = config_recipient["script_error_extended"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
-        email_subject = "Autonotice Checker script error"
+        email_subject = "Orders Without Grids script error"
         email_message = (
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )

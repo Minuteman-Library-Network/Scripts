@@ -5,12 +5,9 @@
 Jeremy Goldstein
 Minuteman Library Network
 
-Generates an email alert in the event that no autorenewals were triggered overnight
-This serves as an indicator of a larger cron job failure as notices did not run and possibly other tasks
+Generates monthly report on new card registrations from Watertown's bookmobile
 """
-
 import psycopg2
-import csv
 import configparser
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -21,7 +18,6 @@ from email import encoders
 from datetime import date
 import traceback
 
-# function takes a sql query as a parameter, connects to a database and returns the results
 def run_query(query):
     # read config file with database login details
     config = configparser.ConfigParser()
@@ -43,47 +39,8 @@ def run_query(query):
     # return variables containing query results and column headers
     return rows
 
-
-# function takes a file as a parameter and attaches that file to an outgoing email
-def send_email(subject, message, recipient):
-    # read config file with credentials for email account
-    config = configparser.ConfigParser()
-    config.read("C:\\Scripts\\Creds\\config.ini")
-    # read config file with recipient list for email
-    config_recipient = configparser.ConfigParser()
-    config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
-
-    # These are variables for the email that will be sent, taken from .ini files referenced above
-    emailhost = config["email"]["host"]
-    emailuser = config["email"]["user"]
-    emailpass = config["email"]["pw"]
-    emailport = config["email"]["port"]
-    emailfrom = config["email"]["sender"]
-    # plain text of email message
-    emailmessage = message
-
-    # Creating the email message
-    msg = MIMEMultipart()
-    msg["From"] = emailfrom
-    if type(recipient) is list:
-        msg["To"] = ", ".join(recipient)
-    else:
-        msg["To"] = recipient
-    msg["Date"] = formatdate(localtime=True)
-    msg["Subject"] = subject
-    msg.attach(MIMEText(emailmessage))
-
-    # Sending the email message
-    smtp = smtplib.SMTP(emailhost, emailport)
-    # for Gmail connection used within Minuteman
-    smtp.ehlo()
-    smtp.starttls()
-    smtp.login(emailuser, emailpass)
-    smtp.sendmail(emailfrom, recipient, msg.as_string())
-    smtp.quit()
-
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
-def send_email_error(subject, message, recipient):
+def send_email(subject, message, recipient):
     # read config file with Sierra login credentials
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
@@ -118,37 +75,31 @@ def send_email_error(subject, message, recipient):
     smtp.quit()
 
 def main():
+    query = r"""
+            SELECT
+              COUNT(p.id) AS total
+            FROM sierra_view.patron_record p
+            JOIN sierra_view.record_metadata rm
+              ON p.id = rm.id
+            
+            WHERE p.pcode4 = '3402'
+              AND p.ptype_code = '35'
+              AND rm.creation_date_gmt::DATE >= (CURRENT_DATE - INTERVAL '1 month')
+            """
+    query_results = run_query(query)
+    for row in query_results:
+        patron_total = row[0]
+
+    email_subject = 'Bookmobile Registrations'
+    email_message = '''***This is an automated email***
+
+{} Patrons were registed at the Bookmobile this month.'''.format(str(patron_total))
     # read config file with recipient list for email
     config_recipient = configparser.ConfigParser()
     config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
-    
-	# query to provide a binary value for if notices ran or not, based on the presence of autorenewals
-    query = r"""
-            SELECT
-	          CASE
-                WHEN COUNT(t.id) = 0 THEN FALSE
-                ELSE TRUE
-              END AS notices_ran
-
-            FROM sierra_view.circ_trans t
-
-            WHERE t.op_code = 'r'
-			  AND t.application_name = 'autonotices' 
-			  AND t.transaction_gmt::DATE = CURRENT_DATE
-            """
-    query_results = run_query(query)
-		
-    for rownum, row in enumerate(query_results):
-        if row[0] == False:
-            email_subject = '0 Autorenewals'
-            email_message = '''***This is an automated email***
-
-There were no items autorenewed on {}'''.format(str(date.today()))
-            
-            send_email(email_subject,email_message,config_recipient["autonotice_checker"]["recipients"].split())
-        else:
-            break
-
+    recipient = config_recipient["watertown_bookmobile"]["recipients"].split()
+    send_email(email_subject, email_message, recipient)
+	
 
 # run main function and send error email to admin of script encounters an error
 if __name__ == "__main__":
@@ -161,10 +112,10 @@ if __name__ == "__main__":
         emailto = config_recipient["script_error_extended"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
-        email_subject = "Autonotice Checker script error"
+        email_subject = "Watertown Bookmobile Registrations script error"
         email_message = (
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )
 
-        send_email_error(email_subject, email_message, emailto)
+        send_email(email_subject, email_message, emailto)
         raise

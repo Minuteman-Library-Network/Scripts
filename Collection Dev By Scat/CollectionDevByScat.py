@@ -50,8 +50,8 @@ def run_query(query):
 
 
 # convert sql query results into formatted excel file
-def excel_writer(query_results, excelfile):
-    workbook = xlsxwriter.Workbook(excelfile, {"remove_timezone": True})
+def excel_writer(query_results, excel_file):
+    workbook = xlsxwriter.Workbook(excel_file, {"remove_timezone": True})
     worksheet = workbook.add_worksheet()
 
     # Formatting our Excel worksheet
@@ -147,7 +147,7 @@ def excel_writer(query_results, excelfile):
 
     workbook.close()
 
-    return excelfile
+    return excel_file
 
 
 # upload report to SIC directory and optionally remove older files
