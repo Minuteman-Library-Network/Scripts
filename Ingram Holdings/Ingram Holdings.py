@@ -191,6 +191,6 @@ if __name__ == "__main__":
     main("con")
     main("fpl")
     main("nor")
-    # main("som")
+    main("som")
     main("win")
     

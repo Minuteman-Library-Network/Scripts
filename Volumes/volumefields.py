@@ -11,16 +11,6 @@ Contact Info: jgoldstein@minlib.net
 """
 
 import psycopg2
-import csv
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.base import MIMEBase
-from email.mime.text import MIMEText
-from email.utils import formatdate
-from email import encoders
-from datetime import date
-
-import psycopg2
 import configparser
 import csv
 import smtplib
@@ -59,18 +49,15 @@ def run_query(query):
     return rows, columns
 
 # function takes the results of a query and converts them to a csv file
-def write_csv(query_results, headers):
-    # provide a name for the csv file and save the file to a variable
-    csvfile = "/Scripts/Volumes/Temp Files/VolumeFields{}.csv".format(date.today())
-
+def write_csv(query_results, headers, csv_file):
     # open csvfile in write mode and add a row to it for the headers and each line of query_results
-    with open(csvfile, "w", encoding="utf-8", newline="") as tempFile:
+    with open(csv_file, "w", encoding="utf-8", newline="") as tempFile:
         myFile = csv.writer(tempFile, delimiter=",")
         myFile.writerow(headers)
         myFile.writerows(query_results)
     tempFile.close()
     # return variable containing the newly created csv file
-    return csvfile
+    return csv_file
 
 
 
@@ -669,7 +656,9 @@ def main():
 '2343271',
 '2195409',
 '2247780',
-'2259190'
+'2259190',
+'2195409',
+'2247780'
               )
             GROUP BY 1, 2
             HAVING MAX(rmi.creation_date_gmt::DATE) >= CURRENT_DATE - INTERVAL '1 year'
@@ -687,7 +676,8 @@ def main():
     query_results, headers = run_query(query)
 
     # generate csv file from those query results
-    local_file = write_csv(query_results, headers)
+    csv_file = "/Scripts/Volumes/Temp Files/VolumeFields{}.csv".format(date.today())
+    local_file = write_csv(query_results, headers, csv_file)
 
     # send email with attached file
     email_subject = "Volume Fields"

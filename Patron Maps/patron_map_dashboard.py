@@ -50,20 +50,15 @@ def run_query(query):
 
 
 # function takes the results of a query and converts them to a csv file
-def write_csv(query_results, headers):
-    # provide a name for the csv file and save the file to a variable
-    csvfile = "/Scripts/Patron Maps/Temp Files/patron_dashboard_update{}.csv".format(
-        date.today()
-    )
-
+def write_csv(query_results, headers, csv_file):
     # open csvfile in write mode and add a row to it for the headers and each line of query_results
-    with open(csvfile, "w", encoding="utf-8", newline="") as tempFile:
+    with open(csv_file, "w", encoding="utf-8", newline="") as tempFile:
         myFile = csv.writer(tempFile, delimiter=",")
         myFile.writerow(headers)
         myFile.writerows(query_results)
     tempFile.close()
     # return variable containing the newly created csv file
-    return csvfile
+    return csv_file
 
 
 # function takes a file as a parameter and attaches that file to an outgoing email
@@ -260,7 +255,10 @@ ORDER BY 1,2
     query_results, headers = run_query(query)
 
     # generate csv file from those query results
-    local_file = write_csv(query_results, headers)
+    csv_file = "/Scripts/Patron Maps/Temp Files/patron_dashboard_update{}.csv".format(
+        date.today()
+    )
+    local_file = write_csv(query_results, headers, csv_file)
 
     # send email with attached file
     email_subject = "monthly patron map dashboard update file"

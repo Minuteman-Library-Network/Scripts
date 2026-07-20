@@ -3,16 +3,15 @@
 # Run in py313
 
 """
-Create and email a list of patrons with amt owed discrepancies in their patron records
-Due to a mismatch between the patron_record.amt_owed and the actual amount of active fines
+Create and email a list of WEL's hotspots and their current status
 
 Author: Jeremy Goldstein
 Contact Info: jgoldstein@minlib.net
 """
 
 import psycopg2
-import configparser
 import csv
+import configparser
 import smtplib
 import os
 from email.mime.multipart import MIMEMultipart
@@ -48,9 +47,11 @@ def run_query(query):
     # return variables containing query results and column headers
     return rows, columns
 
-
 # function takes the results of a query and converts them to a csv file
 def write_csv(query_results, headers, csv_file):
+    # provide a name for the csv file and save the file to a variable
+    
+
     # open csvfile in write mode and add a row to it for the headers and each line of query_results
     with open(csv_file, "w", encoding="utf-8", newline="") as tempFile:
         myFile = csv.writer(tempFile, delimiter=",")
@@ -59,6 +60,7 @@ def write_csv(query_results, headers, csv_file):
     tempFile.close()
     # return variable containing the newly created csv file
     return csv_file
+
 
 
 # function takes a file as a parameter and attaches that file to an outgoing email
@@ -76,7 +78,7 @@ def send_email(subject, message, attachment):
     emailpass = config["email"]["pw"]
     emailport = config["email"]["port"]
     emailfrom = config["email"]["sender"]
-    emailto = config_recipient["amt_owed_errors"]["recipients"].split()
+    emailto = config_recipient["wellesley_hotspots"]["recipients"].split()
     # plain text of email message
     emailmessage = message
 
@@ -142,36 +144,66 @@ def send_email_error(subject, message, recipient):
     smtp.sendmail(emailfrom, recipient, msg.as_string())
     smtp.quit()
 
-
 def main():
     # query to identify patron records with incorrect owed_amt fields
-    query = """\
-           SELECT
-             rm.record_type_code||rm.record_num || 'a' AS Patron_ID,
-             p.owed_amt::MONEY AS owed_amt,
-             SUM(COALESCE(f.item_charge_amt, 0.00) + COALESCE(f.processing_fee_amt, 0.00) + COALESCE(f.billing_fee_amt, 0.00) - COALESCE(f.paid_amt, 0.00))::MONEY AS TotalFines
-           FROM sierra_view.record_metadata rm
-           JOIN sierra_view.patron_record p
-             ON p.id = rm.id
-           LEFT JOIN sierra_view.fine f
-             ON f.patron_record_id = p.id
-           GROUP BY 1,2,p.owed_amt
-           HAVING p.owed_amt != SUM(COALESCE(f.item_charge_amt, 0.00) + COALESCE(f.processing_fee_amt, 0.00) + COALESCE(f.billing_fee_amt, 0.00) - COALESCE(f.paid_amt, 0.00))
-           """
+    query = r"""
+SELECT
+  rm.record_type_code||rm.record_num||
+    COALESCE(
+      CAST(
+        NULLIF(
+          (
+            ( rm.record_num % 10 ) * 2 +
+            ( rm.record_num / 10 % 10 ) * 3 +
+            ( rm.record_num / 100 % 10 ) * 4 +
+            ( rm.record_num / 1000 % 10 ) * 5 +
+            ( rm.record_num / 10000 % 10 ) * 6 +
+            ( rm.record_num / 100000 % 10 ) * 7 +
+            ( rm.record_num / 1000000 % 10  ) * 8 +
+            ( rm.record_num / 10000000 ) * 9
+          ) % 11,
+        10)
+      AS CHAR(1))
+  ,'x') AS record_number,
+  REGEXP_REPLACE(ip.call_number,'^\|a','') AS call_number,
+  CASE
+	WHEN o.due_gmt IS NOT NULL THEN 'CHECKED OUT'
+	ELSE stat.name
+  END AS status,
+  COALESCE(TO_CHAR(o.due_gmt,'YYYY-MM-DD'),'N/A') AS due_date,
+  ''''||ip.barcode AS barcode
+
+FROM sierra_view.item_record i
+JOIN sierra_view.item_record_property ip
+  ON i.id = ip.item_record_id
+JOIN sierra_view.record_metadata rm
+  ON i.id = rm.id
+JOIN sierra_view.item_status_property_myuser stat
+  ON i.item_status_code = stat.code
+LEFT JOIN sierra_view.checkout o
+  ON i.id = o.item_record_id
+
+WHERE (i.itype_code_num = '257' OR (i.itype_code_num = '5' AND i.icode1 = '200'))
+  AND i.item_status_code != 'a'
+  AND i.icode2 = '-'
+  AND i.location_code ~ '^we'
+  AND ip.call_number_norm LIKE '%hotspot%'
+
+ORDER BY 4,3,2
+    """
+
     query_results, headers = run_query(query)
 
     # generate csv file from those query results
-    csv_file = "/Scripts/Amt Owed Errors/Temp Files/amt_owed_errors{}.csv".format(
-        date.today()
-    )
+    csv_file = "/Scripts/Wellesley Hotspots/Temp Files/wel hotspots{}.csv".format(date.today())
     local_file = write_csv(query_results, headers, csv_file)
 
-    # send email with attached file
-    email_subject = "monthly amount owed errors report"
+    # send email with attached file  
+    email_subject = "wel hotspots"
     email_message = """***This is an automated email***
     
     
-    The monthly amt owed errors has been attached."""
+    The Wellesley Hotspots report has been attached."""
     send_email(email_subject, email_message, local_file)
 
     # delete csv file once email has been sent
@@ -189,7 +221,7 @@ if __name__ == "__main__":
         emailto = config_recipient["script_error"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
-        email_subject = "amt owed errors script error"
+        email_subject = "Wellesley Hotspots script error"
         email_message = (
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )
