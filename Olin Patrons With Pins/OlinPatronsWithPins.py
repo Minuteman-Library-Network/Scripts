@@ -3,7 +3,7 @@
 # Run in py313
 
 """
-Create and email a list of WEL's hotspots and their current status
+Create and email a report on Olin's patrons who have set PINs in their records
 
 Author: Jeremy Goldstein
 Contact Info: jgoldstein@minlib.net
@@ -78,7 +78,7 @@ def send_email(subject, message, attachment):
     emailpass = config["email"]["pw"]
     emailport = config["email"]["port"]
     emailfrom = config["email"]["sender"]
-    emailto = config_recipient["wellesley_hotspots"]["recipients"].split()
+    emailto = config_recipient["olin_patrons_with_pins"]["recipients"].split()
     # plain text of email message
     emailmessage = message
 
@@ -146,67 +146,38 @@ def send_email_error(subject, message, recipient):
 
 def main():
     query = r"""
-SELECT
-  rm.record_type_code||rm.record_num||
-    COALESCE(
-      CAST(
-        NULLIF(
-          (
-            ( rm.record_num % 10 ) * 2 +
-            ( rm.record_num / 10 % 10 ) * 3 +
-            ( rm.record_num / 100 % 10 ) * 4 +
-            ( rm.record_num / 1000 % 10 ) * 5 +
-            ( rm.record_num / 10000 % 10 ) * 6 +
-            ( rm.record_num / 100000 % 10 ) * 7 +
-            ( rm.record_num / 1000000 % 10  ) * 8 +
-            ( rm.record_num / 10000000 ) * 9
-          ) % 11,
-        10)
-      AS CHAR(1))
-  ,'x') AS record_number,
-  REGEXP_REPLACE(ip.call_number,'^\|a','') AS call_number,
-  CASE
-	WHEN o.due_gmt IS NOT NULL THEN 'CHECKED OUT'
-	ELSE stat.name
-  END AS status,
-  COALESCE(TO_CHAR(o.due_gmt,'YYYY-MM-DD'),'N/A') AS due_date,
-  ''''||ip.barcode AS barcode
+              SELECT
+                COUNT(DISTINCT p.id) AS total_patrons,
+                COUNT(DISTINCT p.id) FILTER(WHERE v.field_content IS NOT NULL) AS total_with_pins,
+                COUNT(DISTINCT p.id) FILTER(WHERE p.ptype_code = '47') AS total_students,
+                COUNT(DISTINCT p.id) FILTER(WHERE v.field_content IS NOT NULL AND p.ptype_code = '47') AS students_with_pins,
+                COUNT(DISTINCT p.id) FILTER(WHERE p.ptype_code = '197') AS total_crossreg_students,
+                COUNT(DISTINCT p.id) FILTER(WHERE v.field_content IS NOT NULL AND p.ptype_code = '197') AS crossreg_students_with_pins,
+                COUNT(DISTINCT p.id) FILTER(WHERE p.ptype_code = '147') AS total_faculty,
+                COUNT(DISTINCT p.id) FILTER(WHERE v.field_content IS NOT NULL AND p.ptype_code = '147') AS faculty_with_pins
 
-FROM sierra_view.item_record i
-JOIN sierra_view.item_record_property ip
-  ON i.id = ip.item_record_id
-JOIN sierra_view.record_metadata rm
-  ON i.id = rm.id
-JOIN sierra_view.item_status_property_myuser stat
-  ON i.item_status_code = stat.code
-LEFT JOIN sierra_view.checkout o
-  ON i.id = o.item_record_id
-
-WHERE (i.itype_code_num = '257' OR (i.itype_code_num = '5' AND i.icode1 = '200'))
-  AND i.item_status_code != 'a'
-  AND i.icode2 = '-'
-  AND i.location_code ~ '^we'
-  AND ip.call_number_norm LIKE '%hotspot%'
-
-ORDER BY 4,3,2
-    """
-
+              FROM sierra_view.patron_record p
+              LEFT JOIN sierra_view.varfield v
+                ON p.id = v.record_id
+                AND v.varfield_type_code = '='
+              WHERE p.ptype_code IN ('47','147','197')
+            """
     query_results, headers = run_query(query)
 
     # generate csv file from those query results
-    csv_file = "/Scripts/Wellesley Hotspots/Temp Files/wel hotspots{}.csv".format(date.today())
+    csv_file = "/Scripts/Olin Patrons With Pins/Temp Files/OlnPatronsWithPins{}.csv".format(date.today())
     local_file = write_csv(query_results, headers, csv_file)
 
     # send email with attached file  
-    email_subject = "wel hotspots"
+    email_subject = "Olin Patrons With Pins"
     email_message = """***This is an automated email***
     
     
-    The Wellesley Hotspots report has been attached."""
+    The Olin Patrons With Pins report has been attached."""
     send_email(email_subject, email_message, local_file)
 
     # delete csv file once email has been sent
-    os.remove(local_file)
+    os.remove(local_file)     
 
 
 # run main function and send error email to admin of script encounters an error
@@ -220,7 +191,7 @@ if __name__ == "__main__":
         emailto = config_recipient["script_error"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
-        email_subject = "Wellesley Hotspots script error"
+        email_subject = "Olin Patrons with Pins script error"
         email_message = (
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )

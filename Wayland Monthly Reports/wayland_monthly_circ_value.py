@@ -5,15 +5,17 @@
 Jeremy Goldstein
 Minuteman Library Network
 
-Generates monthly report on the circulation of library of things materials owned by Framingham
-Report is produced as an Excel file, which is then emailed to staff.
+Generates monthly Report on the cost per circ
+in the past month broken out by item type
+
+Report is then emailed to staff an Excel attachment
 """
 
 import psycopg2
 import xlsxwriter
-import os
-import configparser
 import smtplib
+import configparser
+import os
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -21,7 +23,6 @@ from email.utils import formatdate
 from email import encoders
 from datetime import date
 import traceback
-
 
 # function takes a sql query as a parameter, connects to a database and returns the results
 def run_query(query):
@@ -45,92 +46,52 @@ def run_query(query):
     # return variables containing query results and column headers
     return rows
 
-
 # convert sql query results into formatted excel file
 def excel_writer(query_results, excel_file):
 
-    #Creating the Excel file for staff
+    # Creating the Excel file for staff
     workbook = xlsxwriter.Workbook(excel_file)
     worksheet = workbook.add_worksheet()
 
 
-    #Formatting our Excel worksheet
+    # Formatting our Excel worksheet
     worksheet.set_landscape()
     worksheet.hide_gridlines(0)
 
-    #Formatting Cells
+    # Formatting Cells
     eformat= workbook.add_format({'text_wrap': True, 'valign': 'top'})
     eformatlabel= workbook.add_format({'text_wrap': True, 'valign': 'top', 'bold': True})
     eformat2= workbook.add_format({'num_format': 'mm/dd/yy hh:mm:ss'})
-    eformat3= workbook.add_format({'num_format': 'mm/dd/yy'})
 
 
     # Setting the column widths
-    worksheet.set_column(0,0,16.29)
-    worksheet.set_column(1,1,10.29)
-    worksheet.set_column(2,2,15.29)
-    worksheet.set_column(3,3,68.43)
-    worksheet.set_column(4,4,8.86)
-    worksheet.set_column(5,5,10.14)
-    worksheet.set_column(6,6,10.14)
-    worksheet.set_column(7,7,15.43)
-    worksheet.set_column(8,8,48.14)
-    worksheet.set_column(9,9,15.29)
-    worksheet.set_column(10,10,11.14)
-    worksheet.set_column(11,11,20.86)
-    worksheet.set_column(12,12,10.57)
-    worksheet.set_column(13,13,9.43)
-    worksheet.set_column(14,14,13.00)
-    worksheet.set_column(15,15,13.57)
-    worksheet.set_column(16,16,34.14)
+    worksheet.set_column(0,0,16.86)
+    worksheet.set_column(1,1,11.86)
+    worksheet.set_column(2,2,11.14)
+    worksheet.set_column(3,3,14.14)
 
     # Inserting a header
-    worksheet.set_header('Framingham Monthly Library Of Things Circulation')
+    worksheet.set_header('Wayland Monthly Circ Value')
 
     # Adding column labels
-    worksheet.write(0,0,'Transaction_time', eformatlabel)
-    worksheet.write(0,1,'Application', eformatlabel)
-    worksheet.write(0,2,'Transaction_type', eformatlabel)
-    worksheet.write(0,3,'Best_title', eformatlabel)
-    worksheet.write(0,4,'Mat_type', eformatlabel)
-    worksheet.write(0,5,'Bib_num', eformatlabel)
-    worksheet.write(0,6,'Item_num', eformatlabel)
-    worksheet.write(0,7,'Barcode', eformatlabel)
-    worksheet.write(0,8,'Call_number_norm', eformatlabel)
-    worksheet.write(0,9,'Stat_group_num', eformatlabel)
-    worksheet.write(0,10,'Due_date', eformatlabel)
-    worksheet.write(0,11,'Count_type_code_num', eformatlabel)
-    worksheet.write(0,12,'Itype_code', eformatlabel)
-    worksheet.write(0,13,'Scat_code', eformatlabel)
-    worksheet.write(0,14,'Location_code', eformatlabel)
-    worksheet.write(0,15,'Loanrule_num', eformatlabel)
-    worksheet.write(0,16,'Patron_encrypted', eformatlabel)
+    worksheet.write(0,0,'IType', eformatlabel)
+    worksheet.write(0,1,'Value', eformatlabel)
+    worksheet.write(0,2,'Circ_Count', eformatlabel)
+    worksheet.write(0,3,'Value_Per_Circ', eformatlabel)
 
 
     # Writing the report for staff to the Excel worksheet
     for rownum, row in enumerate(query_results):
-        worksheet.write(rownum+1,0,row[0], eformat2)
+        worksheet.write(rownum+1,0,row[0], eformat)
         worksheet.write(rownum+1,1,row[1], eformat)
         worksheet.write(rownum+1,2,row[2], eformat)
         worksheet.write(rownum+1,3,row[3], eformat)
-        worksheet.write(rownum+1,4,row[4], eformat)
-        worksheet.write(rownum+1,5,row[5], eformat)
-        worksheet.write(rownum+1,6,row[6], eformat)
-        worksheet.write(rownum+1,7,row[7], eformat)
-        worksheet.write(rownum+1,8,row[8], eformat)
-        worksheet.write(rownum+1,9,row[9], eformat)
-        worksheet.write(rownum+1,10,row[10], eformat3)
-        worksheet.write(rownum+1,11,row[11], eformat)
-        worksheet.write(rownum+1,12,row[12], eformat)
-        worksheet.write(rownum+1,13,row[14], eformat)
-        worksheet.write(rownum+1,14,row[14], eformat)
-        worksheet.write(rownum+1,15,row[15], eformat)
-        worksheet.write(rownum+1,16,row[16], eformat)
     
     workbook.close()
+    return excel_file
 
 # function takes a file as a parameter and attaches that file to an outgoing email
-def send_email(subject, message, attachment):
+def send_email(subject, message, attachment, recipient):
     # read config file with credentials for email account
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
@@ -144,17 +105,16 @@ def send_email(subject, message, attachment):
     emailpass = config["email"]["pw"]
     emailport = config["email"]["port"]
     emailfrom = config["email"]["sender"]
-    emailto = config_recipient["framingham_lot"]["recipients"].split()
     # plain text of email message
     emailmessage = message
 
     # Creating the email message
     msg = MIMEMultipart()
     msg["From"] = emailfrom
-    if type(emailto) is list:
-        msg["To"] = ", ".join(emailto)
+    if type(recipient) is list:
+        msg["To"] = ", ".join(recipient)
     else:
-        msg["To"] = emailto
+        msg["To"] = recipient
     msg["Date"] = formatdate(localtime=True)
     msg["Subject"] = subject
     msg.attach(MIMEText(emailmessage))
@@ -171,8 +131,9 @@ def send_email(subject, message, attachment):
     smtp.ehlo()
     smtp.starttls()
     smtp.login(emailuser, emailpass)
-    smtp.sendmail(emailfrom, emailto, msg.as_string())
+    smtp.sendmail(emailfrom, recipient, msg.as_string())
     smtp.quit()
+
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
 def send_email_error(subject, message, recipient):
@@ -209,78 +170,73 @@ def send_email_error(subject, message, recipient):
     smtp.sendmail(emailfrom, recipient, msg.as_string())
     smtp.quit()
 
-
 def main():
-    # query to identify LoT transactions in the past month
+
     query = r"""
-    SELECT
-      to_char(c.transaction_gmt, 'mm/dd/yyyy HH24:MI:SS'),
-      c.application_name,
-      CASE
-        WHEN c.op_code = 'o' THEN 'checkout'
-        WHEN c.op_code = 'i' THEN 'checkin'
-        WHEN c.op_code = 'n' THEN 'hold'
-        WHEN c.op_code = 'h' THEN 'hold with recall'
-        WHEN c.op_code = 'nb' THEN 'bib hold'
-        WHEN c.op_code = 'hb' THEN 'hold recall bib'
-        WHEN c.op_code = 'ni' THEN 'item hold'
-        WHEN c.op_code = 'hi' THEN 'hold recall item'
-        WHEN c.op_code = 'nv' THEN 'volume hold'
-        WHEN c.op_code = 'hv' THEN 'hold recall volume'
-        WHEN c.op_code = 'f' THEN 'filled hold'
-        WHEN c.op_code = 'r' THEN 'renewal'
-        WHEN c.op_code = 'b' THEN 'booking'
-        WHEN c.op_code = 'u' THEN 'use count'
-        ELSE 'unknown'
-      END AS transaction_type,
-      b.best_title,
-      b.material_code,
-      rmb.record_type_code||rmb.record_num||'a' AS bib_num,
-      rmi.record_type_code||rmi.record_num||'a' AS item_num,
-      i.barcode,
-      i.call_number_norm,
-      c.stat_group_code_num,
-      c.due_date_gmt::DATE,
-      c.count_type_code_num,
-      c.itype_code_num,
-      c.icode1,
-      c.item_location_code,
-      c.loanrule_code_num,
-      md5(CAST(c.patron_record_id AS varchar))
+            SELECT
+              *
+            FROM (
+              SELECT
+                it.name AS itype,
+                CAST(SUM(i.price) AS MONEY) AS value,
+                COUNT(DISTINCT c.id) AS circ_count,
+                (CAST(SUM(i.price) AS MONEY) / COUNT(DISTINCT c.id)) as value_per_circ
 
-    FROM sierra_view.circ_trans c
-    JOIN sierra_view.bib_record_property b
-      ON c.bib_record_id = b.bib_record_id
-    JOIN sierra_view.item_record_property i
-      ON c.item_record_id = i.item_record_id
-    JOIN sierra_view.record_metadata rmi
-      ON c.item_record_id = rmi.id
-    JOIN sierra_view.record_metadata rmb
-      ON c.bib_record_id = rmb.id
+              FROM sierra_view.circ_trans c
+              JOIN sierra_view.item_record i
+                ON c.item_record_id = i.id
+              JOIN sierra_view.itype_property_myuser it
+                ON i.itype_code_num = it.code
 
-    WHERE c.itype_code_num IN ('245', '246', '250', '251', '252', '253')
-      AND c.icode1 = '138'
-      AND c.item_agency_code_num = '18'
-      AND c.transaction_gmt >= CURRENT_DATE - INTERVAL '1 month'
+              WHERE c.op_code IN ('o','r')
+                AND c.transaction_gmt::DATE >= (current_date - INTERVAL '1 month')
+                AND c.stat_group_code_num BETWEEN '740' AND '749'
 
-    ORDER BY i.barcode, c.transaction_gmt
-    """
+              GROUP BY 1
+
+              UNION
+              
+              SELECT
+                'Total' AS itype,
+                CAST(SUM(i.price) AS MONEY) AS value,
+                COUNT(DISTINCT c.id) AS circ_count,
+                (CAST(SUM(i.price) AS MONEY) / COUNT(DISTINCT c.id)) as value_per_circ
+
+              FROM sierra_view.circ_trans c
+              JOIN sierra_view.item_record i
+                ON c.item_record_id = i.id
+              JOIN sierra_view.itype_property_myuser it
+                ON i.itype_code_num = it.code
+
+              WHERE c.op_code IN ('o','r')
+                AND c.transaction_gmt::DATE >= (current_date - INTERVAL '1 month')
+                AND c.stat_group_code_num BETWEEN '740' AND '749'
+            )inner_query
+
+            ORDER BY CASE
+	          WHEN itype = 'Total' THEN 2
+	          ELSE 1
+            END,itype
+            """
 
     query_results = run_query(query)
 
     # generate excel file from those query results
-    excel_file = "/Scripts/Framingham LoT/Temp Files/fpl LoT circ{}.xlsx".format(date.today())
-    excel_writer(query_results, excel_file)
+    excel_file = "/Scripts/Wayland Monthly Reports/Temp Files/WYLMonthlyCircValue{}.xlsx".format(date.today())
+    excel_file = excel_writer(query_results, excel_file)
 
     # send email
-    email_subject = "FPL monthly LoT Circulation"
-    email_message = """***This is an automated email***
+    email_subject = 'Wayland Monthly Circ Value'
+    email_message = '''***This is an automated email***
 
 
-The fpl LoT circ report has been attached."""
-    send_email(email_subject, email_message, excel_file)
+The Wayland Monthly Circ Value report has been attached.'''
+	# read config file with recipient list for email
+    config_recipient = configparser.ConfigParser()
+    config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
+    email_recipient = config_recipient["wayland_monthly_circ_value"]["recipients"].split()  
+    send_email(email_subject, email_message, excel_file, email_recipient)
 
-    # delete local file
     os.remove(excel_file)
 
 
@@ -292,10 +248,10 @@ if __name__ == "__main__":
         # read config file with recipient list for email
         config_recipient = configparser.ConfigParser()
         config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
-        emailto = config_recipient["script_error_extended"]["recipients"].split()
+        emailto = config_recipient["script_error"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
-        email_subject = "Framingham LoT script error"
+        email_subject = "Wayland Monthly Circ Value Script error"
         email_message = (
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )

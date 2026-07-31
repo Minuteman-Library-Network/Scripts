@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 
-# Run in py313
-
+#Run in py313
 """
-Create and email a list of WEL's hotspots and their current status
+Jeremy Goldstein
+Minuteman Library Network
 
-Author: Jeremy Goldstein
-Contact Info: jgoldstein@minlib.net
+Generates monthly Report on the number of unique patrons
+and average checkout per patrons by service location
+
+Report is then emailed to staff as a csv attachment
 """
 
 import psycopg2
@@ -47,11 +49,9 @@ def run_query(query):
     # return variables containing query results and column headers
     return rows, columns
 
+
 # function takes the results of a query and converts them to a csv file
 def write_csv(query_results, headers, csv_file):
-    # provide a name for the csv file and save the file to a variable
-    
-
     # open csvfile in write mode and add a row to it for the headers and each line of query_results
     with open(csv_file, "w", encoding="utf-8", newline="") as tempFile:
         myFile = csv.writer(tempFile, delimiter=",")
@@ -61,10 +61,8 @@ def write_csv(query_results, headers, csv_file):
     # return variable containing the newly created csv file
     return csv_file
 
-
-
 # function takes a file as a parameter and attaches that file to an outgoing email
-def send_email(subject, message, attachment):
+def send_email(subject, message, attachment, recipient):
     # read config file with credentials for email account
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
@@ -78,17 +76,16 @@ def send_email(subject, message, attachment):
     emailpass = config["email"]["pw"]
     emailport = config["email"]["port"]
     emailfrom = config["email"]["sender"]
-    emailto = config_recipient["wellesley_hotspots"]["recipients"].split()
     # plain text of email message
     emailmessage = message
 
     # Creating the email message
     msg = MIMEMultipart()
     msg["From"] = emailfrom
-    if type(emailto) is list:
-        msg["To"] = ", ".join(emailto)
+    if type(recipient) is list:
+        msg["To"] = ", ".join(recipient)
     else:
-        msg["To"] = emailto
+        msg["To"] = recipient
     msg["Date"] = formatdate(localtime=True)
     msg["Subject"] = subject
     msg.attach(MIMEText(emailmessage))
@@ -105,7 +102,7 @@ def send_email(subject, message, attachment):
     smtp.ehlo()
     smtp.starttls()
     smtp.login(emailuser, emailpass)
-    smtp.sendmail(emailfrom, emailto, msg.as_string())
+    smtp.sendmail(emailfrom, recipient, msg.as_string())
     smtp.quit()
 
 
@@ -144,68 +141,49 @@ def send_email_error(subject, message, recipient):
     smtp.sendmail(emailfrom, recipient, msg.as_string())
     smtp.quit()
 
+
+
 def main():
     query = r"""
-SELECT
-  rm.record_type_code||rm.record_num||
-    COALESCE(
-      CAST(
-        NULLIF(
-          (
-            ( rm.record_num % 10 ) * 2 +
-            ( rm.record_num / 10 % 10 ) * 3 +
-            ( rm.record_num / 100 % 10 ) * 4 +
-            ( rm.record_num / 1000 % 10 ) * 5 +
-            ( rm.record_num / 10000 % 10 ) * 6 +
-            ( rm.record_num / 100000 % 10 ) * 7 +
-            ( rm.record_num / 1000000 % 10  ) * 8 +
-            ( rm.record_num / 10000000 ) * 9
-          ) % 11,
-        10)
-      AS CHAR(1))
-  ,'x') AS record_number,
-  REGEXP_REPLACE(ip.call_number,'^\|a','') AS call_number,
-  CASE
-	WHEN o.due_gmt IS NOT NULL THEN 'CHECKED OUT'
-	ELSE stat.name
-  END AS status,
-  COALESCE(TO_CHAR(o.due_gmt,'YYYY-MM-DD'),'N/A') AS due_date,
-  ''''||ip.barcode AS barcode
+      SELECT
+        TO_CHAR(t.transaction_gmt, 'MM-DD-YY') AS transaction_date,
+        l.name AS checkout_location,
+        COUNT(t.id) AS total_checkouts,
+        COUNT(DISTINCT(t.patron_record_id)) AS total_unique_patrons,
+        ROUND(COUNT(t.id)::NUMERIC/COUNT(DISTINCT(t.patron_record_id)),2) AS avg_checkouts_per_patron
 
-FROM sierra_view.item_record i
-JOIN sierra_view.item_record_property ip
-  ON i.id = ip.item_record_id
-JOIN sierra_view.record_metadata rm
-  ON i.id = rm.id
-JOIN sierra_view.item_status_property_myuser stat
-  ON i.item_status_code = stat.code
-LEFT JOIN sierra_view.checkout o
-  ON i.id = o.item_record_id
-
-WHERE (i.itype_code_num = '257' OR (i.itype_code_num = '5' AND i.icode1 = '200'))
-  AND i.item_status_code != 'a'
-  AND i.icode2 = '-'
-  AND i.location_code ~ '^we'
-  AND ip.call_number_norm LIKE '%hotspot%'
-
-ORDER BY 4,3,2
+      FROM sierra_view.circ_trans t
+      JOIN sierra_view.statistic_group_myuser s
+        ON t.stat_group_code_num = s.code
+      JOIN sierra_view.patron_record p
+        ON t.patron_record_id = p.id
+      JOIN sierra_view.location_myuser l
+        ON s.location_code = l."code"
+  
+      WHERE t.op_code = 'o'
+        AND t.transaction_gmt > NOW()::DATE - INTERVAL '1 month'
+        AND p.pcode3 = '115'
+      GROUP BY 1,2
     """
 
     query_results, headers = run_query(query)
-
-    # generate csv file from those query results
-    csv_file = "/Scripts/Wellesley Hotspots/Temp Files/wel hotspots{}.csv".format(date.today())
+    
+    # generate csv  file from those query results
+    csv_file = "/Scripts/Wayland Monthly Reports/Temp Files/wyl_monthly_patrons_by_checkoutloc{}.csv".format(date.today())
     local_file = write_csv(query_results, headers, csv_file)
 
-    # send email with attached file  
-    email_subject = "wel hotspots"
+    # send email
+    email_subject = "Monthly WYL Patrons by Checkout Location"
     email_message = """***This is an automated email***
+        
+    The monthly report of Wayland Patrons by Checkout Location has been attached. 
+    """
+	# read config file with recipient list for email
+    config_recipient = configparser.ConfigParser()
+    config_recipient.read("C:\\Scripts\\Creds\\emails.ini")
+    email_recipient = config_recipient["wayland_monthly_patrons_by_checkoutloc"]["recipients"].split()  
+    send_email(email_subject, email_message, local_file, email_recipient)
     
-    
-    The Wellesley Hotspots report has been attached."""
-    send_email(email_subject, email_message, local_file)
-
-    # delete csv file once email has been sent
     os.remove(local_file)
 
 
@@ -220,7 +198,7 @@ if __name__ == "__main__":
         emailto = config_recipient["script_error"]["recipients"].split()
 
         # craft email subject and message containing error message details from traceback
-        email_subject = "Wellesley Hotspots script error"
+        email_subject = "Wayland Monthly Patrons By Checkout Location script error"
         email_message = (
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )
