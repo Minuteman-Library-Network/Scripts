@@ -61,6 +61,7 @@ def excel_writer():
 			COUNT(t.id) FILTER(WHERE i.icode1 = '170') AS scat_170,
 			COUNT(t.id) FILTER(WHERE i.icode1 = '171') AS scat_171,
 			COUNT(t.id) FILTER(WHERE i.icode1 = '171') AS scat_172,
+			COUNT(t.id) FILTER(WHERE i.icode1 = '173') AS scat_173,
 			COUNT(t.id) FILTER(WHERE i.icode1 = '180') AS scat_180,
 			COUNT(t.id) FILTER(WHERE i.icode1 = '185') AS scat_185,
 			COUNT(t.id) FILTER(WHERE i.icode1 = '186') AS scat_186,
@@ -72,7 +73,7 @@ def excel_writer():
 			sierra_view.item_record i
 			ON
 			t.item_record_id = i.id
-			AND i.icode1 IN ('165','166','167','168','170','171','172','180','185','186')
+			AND i.icode1 IN ('165','166','167','168','170','171','172','173','180','185','186')
 			AND i.location_code = '{}'
             WHERE
 			t.op_code = 'o'
@@ -116,6 +117,7 @@ def excel_writer():
     worksheet.set_column(9,9,8.43)
     worksheet.set_column(10,10,8.43)
     worksheet.set_column(11,11,8.43)
+    worksheet.set_column(12,12,8.43)
     worksheet1.set_column(0,0,12.43)
     worksheet1.set_column(1,1,8.43)
     worksheet1.set_column(2,2,8.43)
@@ -128,6 +130,7 @@ def excel_writer():
     worksheet1.set_column(9,9,8.43)
     worksheet1.set_column(10,10,8.43)
     worksheet1.set_column(11,11,8.43)
+    worksheet1.set_column(12,12,8.43)
     worksheet2.set_column(0,0,12.43)
     worksheet2.set_column(1,1,8.43)
     worksheet2.set_column(2,2,8.43)
@@ -140,6 +143,7 @@ def excel_writer():
     worksheet2.set_column(9,9,8.43)
     worksheet2.set_column(10,10,8.43)
     worksheet2.set_column(11,11,8.43)
+    worksheet2.set_column(12,12,8.43)
     worksheet3.set_column(0,0,12.43)
     worksheet3.set_column(1,1,8.43)
     worksheet3.set_column(2,2,8.43)
@@ -152,6 +156,7 @@ def excel_writer():
     worksheet3.set_column(9,9,8.43)
     worksheet3.set_column(10,10,8.43)
     worksheet3.set_column(11,11,8.43)
+    worksheet3.set_column(12,12,8.43)
     worksheet4.set_column(0,0,12.43)
     worksheet4.set_column(1,1,8.43)
     worksheet4.set_column(2,2,8.43)
@@ -164,6 +169,7 @@ def excel_writer():
     worksheet4.set_column(9,9,8.43)
     worksheet4.set_column(10,10,8.43)
     worksheet4.set_column(11,11,8.43)
+    worksheet4.set_column(12,12,8.43)
     worksheet5.set_column(0,0,12.43)
     worksheet5.set_column(1,1,8.43)
     worksheet5.set_column(2,2,8.43)
@@ -176,6 +182,7 @@ def excel_writer():
     worksheet5.set_column(9,9,8.43)
     worksheet5.set_column(10,10,8.43)
     worksheet5.set_column(11,11,8.43)
+    worksheet5.set_column(12,12,8.43)
     worksheet6.set_column(0,0,12.43)
     worksheet6.set_column(1,1,8.43)
     worksheet6.set_column(2,2,8.43)
@@ -188,6 +195,7 @@ def excel_writer():
     worksheet6.set_column(9,9,8.43)
     worksheet6.set_column(10,10,8.43)
     worksheet6.set_column(11,11,8.43)
+    worksheet6.set_column(12,12,8.43)
     worksheet7.set_column(0,0,10.67)
     worksheet7.set_column(1,1,8.43)
     worksheet7.set_column(2,2,8.43)
@@ -209,10 +217,11 @@ def excel_writer():
     worksheet.write(0,5,'Scat 170', eformatlabel)
     worksheet.write(0,6,'Scat 171', eformatlabel)
     worksheet.write(0,7,'Scat 172', eformatlabel)
-    worksheet.write(0,8,'Scat 180', eformatlabel)
-    worksheet.write(0,9,'Scat 185', eformatlabel)
-    worksheet.write(0,10,'Scat 186', eformatlabel)
-    worksheet.write(0,11,'Total', eformatlabel)
+    worksheet.write(0,8,'Scat 173', eformatlabel)
+    worksheet.write(0,9,'Scat 180', eformatlabel)
+    worksheet.write(0,10,'Scat 185', eformatlabel)
+    worksheet.write(0,11,'Scat 186', eformatlabel)
+    worksheet.write(0,12,'Total', eformatlabel)
     worksheet1.write(0,0,'Date', eformatlabel)
     worksheet1.write(0,1,'Scat 165', eformatlabel)
     worksheet1.write(0,2,'Scat 166', eformatlabel)
@@ -221,10 +230,11 @@ def excel_writer():
     worksheet1.write(0,5,'Scat 170', eformatlabel)
     worksheet1.write(0,6,'Scat 171', eformatlabel)
     worksheet1.write(0,7,'Scat 172', eformatlabel)
-    worksheet1.write(0,8,'Scat 180', eformatlabel)
-    worksheet1.write(0,9,'Scat 185', eformatlabel)
-    worksheet1.write(0,10,'Scat 186', eformatlabel)
-    worksheet1.write(0,11,'Total', eformatlabel)
+    worksheet1.write(0,8,'Scat 173', eformatlabel)
+    worksheet1.write(0,9,'Scat 180', eformatlabel)
+    worksheet1.write(0,10,'Scat 185', eformatlabel)
+    worksheet1.write(0,11,'Scat 186', eformatlabel)
+    worksheet1.write(0,12,'Total', eformatlabel)
     worksheet2.write(0,0,'Date', eformatlabel)
     worksheet2.write(0,1,'Scat 165', eformatlabel)
     worksheet2.write(0,2,'Scat 166', eformatlabel)
@@ -233,10 +243,11 @@ def excel_writer():
     worksheet2.write(0,5,'Scat 170', eformatlabel)
     worksheet2.write(0,6,'Scat 171', eformatlabel)
     worksheet2.write(0,7,'Scat 172', eformatlabel)
-    worksheet2.write(0,8,'Scat 180', eformatlabel)
-    worksheet2.write(0,9,'Scat 185', eformatlabel)
-    worksheet2.write(0,10,'Scat 186', eformatlabel)
-    worksheet2.write(0,11,'Total', eformatlabel)
+    worksheet2.write(0,8,'Scat 173', eformatlabel)
+    worksheet2.write(0,9,'Scat 180', eformatlabel)
+    worksheet2.write(0,10,'Scat 185', eformatlabel)
+    worksheet2.write(0,11,'Scat 186', eformatlabel)
+    worksheet2.write(0,12,'Total', eformatlabel)
     worksheet3.write(0,0,'Date', eformatlabel)
     worksheet3.write(0,1,'Scat 165', eformatlabel)
     worksheet3.write(0,2,'Scat 166', eformatlabel)
@@ -245,10 +256,11 @@ def excel_writer():
     worksheet3.write(0,5,'Scat 170', eformatlabel)
     worksheet3.write(0,6,'Scat 171', eformatlabel)
     worksheet3.write(0,7,'Scat 172', eformatlabel)
-    worksheet3.write(0,8,'Scat 180', eformatlabel)
-    worksheet3.write(0,9,'Scat 185', eformatlabel)
-    worksheet3.write(0,10,'Scat 186', eformatlabel)
-    worksheet3.write(0,11,'Total', eformatlabel)
+    worksheet3.write(0,8,'Scat 173', eformatlabel)
+    worksheet3.write(0,9,'Scat 180', eformatlabel)
+    worksheet3.write(0,10,'Scat 185', eformatlabel)
+    worksheet3.write(0,11,'Scat 186', eformatlabel)
+    worksheet3.write(0,12,'Total', eformatlabel)
     worksheet4.write(0,0,'Date', eformatlabel)
     worksheet4.write(0,1,'Scat 165', eformatlabel)
     worksheet4.write(0,2,'Scat 166', eformatlabel)
@@ -257,10 +269,11 @@ def excel_writer():
     worksheet4.write(0,5,'Scat 170', eformatlabel)
     worksheet4.write(0,6,'Scat 171', eformatlabel)
     worksheet4.write(0,7,'Scat 172', eformatlabel)
-    worksheet4.write(0,8,'Scat 180', eformatlabel)
-    worksheet4.write(0,9,'Scat 185', eformatlabel)
-    worksheet4.write(0,10,'Scat 186', eformatlabel)
-    worksheet4.write(0,11,'Total', eformatlabel)
+    worksheet4.write(0,8,'Scat 173', eformatlabel)
+    worksheet4.write(0,9,'Scat 180', eformatlabel)
+    worksheet4.write(0,10,'Scat 185', eformatlabel)
+    worksheet4.write(0,11,'Scat 186', eformatlabel)
+    worksheet4.write(0,12,'Total', eformatlabel)
     worksheet5.write(0,0,'Date', eformatlabel)
     worksheet5.write(0,1,'Scat 165', eformatlabel)
     worksheet5.write(0,2,'Scat 166', eformatlabel)
@@ -269,10 +282,11 @@ def excel_writer():
     worksheet5.write(0,5,'Scat 170', eformatlabel)
     worksheet5.write(0,6,'Scat 171', eformatlabel)
     worksheet5.write(0,7,'Scat 172', eformatlabel)
-    worksheet5.write(0,8,'Scat 180', eformatlabel)
-    worksheet5.write(0,9,'Scat 185', eformatlabel)
-    worksheet5.write(0,10,'Scat 186', eformatlabel)
-    worksheet5.write(0,11,'Total', eformatlabel)
+    worksheet5.write(0,8,'Scat 173', eformatlabel)
+    worksheet5.write(0,9,'Scat 180', eformatlabel)
+    worksheet5.write(0,10,'Scat 185', eformatlabel)
+    worksheet5.write(0,11,'Scat 186', eformatlabel)
+    worksheet5.write(0,12,'Total', eformatlabel)
     worksheet6.write(0,0,'Date', eformatlabel)
     worksheet6.write(0,1,'Scat 165', eformatlabel)
     worksheet6.write(0,2,'Scat 166', eformatlabel)
@@ -281,10 +295,11 @@ def excel_writer():
     worksheet6.write(0,5,'Scat 170', eformatlabel)
     worksheet6.write(0,6,'Scat 171', eformatlabel)
     worksheet6.write(0,7,'Scat 172', eformatlabel)
-    worksheet6.write(0,8,'Scat 180', eformatlabel)
-    worksheet6.write(0,9,'Scat 185', eformatlabel)
-    worksheet6.write(0,10,'Scat 186', eformatlabel)
-    worksheet6.write(0,11,'Total', eformatlabel)
+    worksheet6.write(0,8,'Scat 173', eformatlabel)
+    worksheet6.write(0,9,'Scat 180', eformatlabel)
+    worksheet6.write(0,10,'Scat 185', eformatlabel)
+    worksheet6.write(0,11,'Scat 186', eformatlabel)
+    worksheet6.write(0,12,'Total', eformatlabel)
     worksheet7.write(0,0,'Scat Code', eformatlabel)
     worksheet7.write(0,1,'camn', eformatlabel)
     worksheet7.write(0,2,'ca4nn', eformatlabel)
@@ -308,6 +323,7 @@ def excel_writer():
         worksheet.write(rownum+1,9,row[9], eformat)
         worksheet.write(rownum+1,10,row[10], eformat)
         worksheet.write(rownum+1,11,row[11], eformat)
+        worksheet.write(rownum+1,12,row[12], eformat)
     for rownum, row in enumerate(run_query(query.format('ca4nn'))):
         worksheet1.write(rownum+1,0,row[0], dateformat)
         worksheet1.write(rownum+1,1,row[1], eformat)
@@ -321,6 +337,7 @@ def excel_writer():
         worksheet1.write(rownum+1,9,row[9], eformat)
         worksheet1.write(rownum+1,10,row[10], eformat)
         worksheet1.write(rownum+1,11,row[11], eformat)
+        worksheet1.write(rownum+1,12,row[12], eformat)
     for rownum, row in enumerate(run_query(query.format('ca5nn'))):
         worksheet2.write(rownum+1,0,row[0], dateformat)
         worksheet2.write(rownum+1,1,row[1], eformat)
@@ -334,6 +351,7 @@ def excel_writer():
         worksheet2.write(rownum+1,9,row[9], eformat)
         worksheet2.write(rownum+1,10,row[10], eformat)
         worksheet2.write(rownum+1,11,row[11], eformat)
+        worksheet2.write(rownum+1,12,row[12], eformat)
     for rownum, row in enumerate(run_query(query.format('ca6nn'))):
         worksheet3.write(rownum+1,0,row[0], dateformat)
         worksheet3.write(rownum+1,1,row[1], eformat)
@@ -347,6 +365,7 @@ def excel_writer():
         worksheet3.write(rownum+1,9,row[9], eformat)
         worksheet3.write(rownum+1,10,row[10], eformat)
         worksheet3.write(rownum+1,11,row[11], eformat)
+        worksheet3.write(rownum+1,12,row[12], eformat)
     for rownum, row in enumerate(run_query(query.format('ca7nn'))):
         worksheet4.write(rownum+1,0,row[0], dateformat)
         worksheet4.write(rownum+1,1,row[1], eformat)
@@ -360,6 +379,7 @@ def excel_writer():
         worksheet4.write(rownum+1,9,row[9], eformat)
         worksheet4.write(rownum+1,10,row[10], eformat)
         worksheet4.write(rownum+1,11,row[11], eformat)
+        worksheet4.write(rownum+1,12,row[12], eformat)
     for rownum, row in enumerate(run_query(query.format('ca8nn'))):
         worksheet5.write(rownum+1,0,row[0], dateformat)
         worksheet5.write(rownum+1,1,row[1], eformat)
@@ -373,6 +393,7 @@ def excel_writer():
         worksheet5.write(rownum+1,9,row[9], eformat)
         worksheet5.write(rownum+1,10,row[10], eformat)
         worksheet5.write(rownum+1,11,row[11], eformat)
+        worksheet5.write(rownum+1,12,row[12], eformat)
     for rownum, row in enumerate(run_query(query.format('ca9nn'))):
         worksheet6.write(rownum+1,0,row[0], dateformat)
         worksheet6.write(rownum+1,1,row[1], eformat)
@@ -385,7 +406,8 @@ def excel_writer():
         worksheet6.write(rownum+1,8,row[8], eformat)
         worksheet6.write(rownum+1,9,row[9], eformat)
         worksheet6.write(rownum+1,10,row[10], eformat)
-        worksheet6.write(rownum+1,11,row[11], eformat)   
+        worksheet6.write(rownum+1,11,row[11], eformat)  
+        worksheet6.write(rownum+1,12,row[12], eformat)  
     query2 =  r"""
               SELECT
                 i.icode1 AS scat_code,
@@ -404,7 +426,7 @@ def excel_writer():
                 ON l.bib_record_id = rm.id
 
               WHERE i.location_code ~ '^ca(m|4|5|6|7|8|9)nn'
-                AND i.icode1 IN ('165','166','167','168','170','171','172','180','185','186')
+                AND i.icode1 IN ('165','166','167','168','170','171','172','173','180','185','186')
                 AND rm.record_type_code||rm.record_num != 'b4147440'
 
               GROUP BY 1

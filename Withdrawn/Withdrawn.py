@@ -209,13 +209,13 @@ def main(library,libcode):
       excel_file = (
             "/Scripts/Withdrawn/Temp Files/"
             + libcode
-            + "WithdrawnItems{}.xlsx".format(date.today().replace(day=1).strftime("%b%Y"))
+            + "WithdrawnItems{}.xlsx".format((date.today().replace(day=1) - timedelta(4)).strftime("%b%Y"))
         )
       excel_writer(query_results, excel_file)
       sftp_file(
             "C:\\Scripts\\Withdrawn\\Temp Files\\"
             + libcode
-            + "WithdrawnItems{}.xlsx".format(date.today().replace(day=1).strftime("%b%Y")),
+            + "WithdrawnItems{}.xlsx".format((date.today().replace(day=1) - timedelta(4)).strftime("%b%Y")),
             library,
         )
 

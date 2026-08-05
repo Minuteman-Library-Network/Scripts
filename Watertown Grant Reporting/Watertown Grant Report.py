@@ -94,6 +94,7 @@ def sftp_file(local_file):
     config.read("C:\\Scripts\\Creds\\config.ini")
 
     cnopts = pysftp.CnOpts()
+    cnopts.hostkeys = None
 
     srv = pysftp.Connection(
         host=config["sic"]["sic_host"],

@@ -211,13 +211,13 @@ def main(library,libcode):
         excel_file = (
             "/Scripts/New Items/Temp Files/"
             + libcode
-            + "NewItems{}.xlsx".format(date.today().replace(day=1).strftime("%b%Y"))
+            + "NewItems{}.xlsx".format((date.today().replace(day=1) - timedelta(3)).strftime("%b%Y"))
         )
         excel_writer(query_results, excel_file)
         sftp_file(
             "C:\\Scripts\\New Items\\Temp Files\\"
             + libcode
-            + "NewItems{}.xlsx".format(date.today().replace(day=1).strftime("%b%Y")),
+            + "NewItems{}.xlsx".format((date.today().replace(day=1) - timedelta(3)).strftime("%b%Y")),
             library,
         )
 

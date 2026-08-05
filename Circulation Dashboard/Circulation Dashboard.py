@@ -211,7 +211,7 @@ def main():
           WHEN fp.charge_type_code = '5' THEN 'Lost Book'
         END AS charge_type,
         CASE
-          WHEN fp.payment_type_code = 'e' THEN true
+          WHEN fp.tty_num IN (0,8,9) THEN true
           ELSE false
         END AS paid_online,
         COUNT(fp.id) FILTER (WHERE fp.payment_status_code NOT IN ('3','0')) AS fines_paid_count,
