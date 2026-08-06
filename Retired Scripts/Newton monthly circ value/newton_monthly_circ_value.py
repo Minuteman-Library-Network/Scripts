@@ -31,7 +31,7 @@ emailfrom= ''
 emailto = ['']
 
 #Connecting to Sierra PostgreSQL database
-conn = psycopg2.connect("dbname='iii' user='mlnsql' host='sierra-db.minlib.net' port='1032' password='1234' sslmode='require'")
+conn = psycopg2.connect("dbname='' user='' host='' port='' password='' sslmode='require'")
 
 #Opening a session and querying the database for weekly new items
 cursor = conn.cursor()
