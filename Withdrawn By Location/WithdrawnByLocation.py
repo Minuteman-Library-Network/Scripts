@@ -6,7 +6,7 @@
 Jeremy Goldstein
 Minuteman Library Network
 
-Script used to generate a monthly report of new items counts
+Script used to generate a monthly report of withdrawn items counts
 as a crosstab report by Item Type and Location Code
 Report is produced as an Excel file
 that is then uploaded to our staff intranet site for distribution, via sftp.
@@ -58,7 +58,7 @@ def excel_writer_pandas(query_results,headers,excel_file):
 
     # create dataframe from query results
     df = pd.DataFrame(query_results, columns = headers)
-    # convert dataframe to pivot table, making sure to preserve the sort order from the query results for columns
+    # convert dataframe to pivot table, making sure to preserve the sort order from the query results for the column order
     df = df.pivot_table(index = ['location_code','location_name'], columns = ['itype'], values = 'item_count', sort = False)
     # with pivot table complete sort rows on first column
     df = df.sort_index(level=0)
@@ -95,7 +95,7 @@ def sftp_file(local_file):
     local_file = local_file
 
     srv.cwd(
-        "/reports/Network-Wide Reports/New By Location/"
+        "/reports/Network-Wide Reports/Withdrawn Count/"
     )
     srv.put(local_file)
 
@@ -164,13 +164,11 @@ def main():
             JOIN sierra_view.item_record i
               ON cl.location_code = i.location_code
               AND cl.itype_code = i.itype_code_num
-            JOIN sierra_view.record_metadata rm
-              ON i.id = rm.id
 
             WHERE i.location_code !~ ('^(int|ceb)')
               AND i.itype_code_num NOT IN ('240','241','242')
-              AND i.item_message_code != 'f'
-              AND rm.creation_date_gmt::DATE >= CURRENT_DATE - INTERVAL '1 month'
+              AND i.item_status_code = 'w'
+              AND i.last_status_update::DATE >= CURRENT_DATE - INTERVAL '1 month'
   
             GROUP BY 1,2,cl.itype_code,cl.itype_name
             ORDER BY cl.itype_code,1
@@ -178,9 +176,9 @@ def main():
        
     query_results, headers = run_query(query)
     # Name of Excel File
-    excel_file = ("/Scripts/New Items By Location/Temp Files/MLNNewByLocation{}.xlsx".format((date.today().replace(day=1) - timedelta(1)).strftime("%b%Y")))
+    excel_file = ("/Scripts/Withdrawn By Location/Temp Files/MLNWithdrawnCount{}.xlsx".format((date.today().replace(day=1) - timedelta(1)).strftime("%b%Y")))
     excel_writer_pandas(query_results, headers, excel_file)
-    sftp_file("C:\\Scripts\\New Items By Location\\Temp Files\\MLNNewByLocation{}.xlsx".format((date.today().replace(day=1) - timedelta(1)).strftime("%b%Y")))
+    sftp_file("C:\\Scripts\\Withdrawn By Location\\Temp Files\\MLNWithdrawnCount{}.xlsx".format((date.today().replace(day=1) - timedelta(1)).strftime("%b%Y")))
 
 
 # run main function and send error email to admin of script encounters an error
