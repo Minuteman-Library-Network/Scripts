@@ -4,6 +4,7 @@
 
 """
 Create weekly purchase alert customized to Lexington's parameters
+Addition of local speed read copies
 Upload file to staff site via sftp for distribution to staff
 """
 
