@@ -11,6 +11,7 @@ Generate and send email notification to patrons with whose library cards expired
 import psycopg2
 import smtplib
 import configparser
+import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
@@ -39,19 +40,32 @@ def run_query(query):
     conn.close()
     return rows
 
-
-# function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
-def send_email(subject, message_text, message_html, recipient):
+# Create and return a logged-in SMTP connection
+def get_smtp_connection():
     # read config file with Sierra login credentials
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
     # These are variables for the email that will be sent.
-    # Make sure to use your own library's email server (emailhost)
+    # Make sure to use your own library's email server (emailhost)    
     emailhost = config["email"]["host"]
     emailuser = config["email"]["user"]
     emailpass = config["email"]["pw"]
     emailport = config["email"]["port"]
+
+    smtp = smtplib.SMTP(emailhost, emailport, timeout=30)
+    smtp.ehlo()
+    smtp.starttls()
+    smtp.ehlo()
+    smtp.login(emailuser, emailpass)
+    return smtp
+
+# function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
+def send_email(subject, message_text, message_html, recipient, smtp, max_retries=3, base_delay=5):
+    # read config file with Sierra login credentials
+    config = configparser.ConfigParser()
+    config.read("C:\\Scripts\\Creds\\config.ini")
+
     emailfrom = config["email"]["sender"]
 
     # Creating the email message with html and plaintxt options
@@ -68,28 +82,29 @@ def send_email(subject, message_text, message_html, recipient):
     msg.attach(part1)
     msg.attach(part2)
 
-    # Sending the email message
-    smtp = smtplib.SMTP(emailhost, emailport)
-    # for Gmail connection used within Minuteman
-    smtp.ehlo()
-    smtp.starttls()
-    smtp.login(emailuser, emailpass)
-    smtp.sendmail(emailfrom, recipient, msg.as_string())
-    smtp.quit()
+    # send message with retry capability to reduce temporary server rejections from Gmail
+    for attempt in range(1, max_retries + 1):
+        try:
+            smtp.sendmail(emailfrom, recipient, msg.as_string())
+            return True
+ 
+        except smtplib.SMTPDataError as e:
+            code, resp = e.args
+            if code == 451 or (500 > code >= 400):  # transient 4xx errors
+                wait = base_delay * attempt
+                time.sleep(wait)
+                continue
+            else:
+                return False
+
 
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
-def send_email_error(subject, message, recipient):
+def send_email_error(subject, message, recipient, smtp):
     # read config file with Sierra login credentials
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    # These are variables for the email that will be sent.
-    # Make sure to use your own library's email server (emailhost)
-    emailhost = config["email"]["host"]
-    emailuser = config["email"]["user"]
-    emailpass = config["email"]["pw"]
-    emailport = config["email"]["port"]
     emailfrom = config["email"]["sender"]
 
     # Creating the email message
@@ -105,16 +120,12 @@ def send_email_error(subject, message, recipient):
     msg.attach(MIMEText(emailmessage))
 
     # Sending the email message
-    smtp = smtplib.SMTP(emailhost, emailport)
-    # for Gmail connection used within Minuteman
-    smtp.ehlo()
-    smtp.starttls()
-    smtp.login(emailuser, emailpass)
+
     smtp.sendmail(emailfrom, recipient, msg.as_string())
     smtp.quit()
 
 
-def main():
+def main(smtp):
     query = """
       --Find patrons in the fourth quarter of MLN libraries whose cards expired yesterday
       SELECT
@@ -172,13 +183,15 @@ Your library card expired on {}.  Visit or contact any Minuteman library for inf
     </html>""".format(
             str(row[0]), str(row[1]), str(row[3])
         )
-        send_email(emailsubject, email_text, email_html, emailto)
+        send_email(emailsubject, email_text, email_html, emailto, smtp)
 
+    smtp.quit()
 
 # run main function and send error email to admin of script encounters an error
 if __name__ == "__main__":
     try:
-        main()
+        smtp = get_smtp_connection()
+        main(smtp)
     except Exception:
         # read config file with recipient list for email
         config_recipient = configparser.ConfigParser()
@@ -191,5 +204,5 @@ if __name__ == "__main__":
             "Your script failed with the following error:\n\n" + traceback.format_exc()
         )
 
-        send_email_error(email_subject, email_message, emailto)
+        send_email_error(email_subject, email_message, emailto, smtp)
         raise
