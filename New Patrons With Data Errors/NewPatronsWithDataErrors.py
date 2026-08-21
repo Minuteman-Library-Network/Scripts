@@ -11,11 +11,11 @@ Reports are produced as Excel files that are then uploaded to our staff intrenet
 import psycopg2
 import xlsxwriter
 import os
-import pysftp
+import paramiko
 import configparser
 import sys
 import time
-from datetime import date
+from datetime import date, datetime, timedelta
 import re
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -102,7 +102,7 @@ def academic_excel_writer(query_results,excel_file):
         else:
             worksheet.write(rownum+1,3,row[3], eformat)
         if (not re.search('^[\dPp]',str(row[5]))):
-    	    worksheet.write(rownum+1,5,row[5], eformatlabel)
+            worksheet.write(rownum+1,5,row[5], eformatlabel)
         else:
             worksheet.write(rownum+1,5,row[5], eformat)
         worksheet.write(rownum+1,6,row[6], eformat)
@@ -182,7 +182,7 @@ def excel_writer(query_results,excel_file,ma_town):
         else:
             worksheet.write(rownum+1,4,row[4], eformat)
         if (not re.search('^[\dPp]',str(row[6]))):
-    	    worksheet.write(rownum+1,6,row[6], eformatlabel)
+            worksheet.write(rownum+1,6,row[6], eformatlabel)
         else:
             worksheet.write(rownum+1,6,row[6], eformat)
         worksheet.write(rownum+1,7,row[7], eformat)
@@ -203,37 +203,38 @@ def excel_writer(query_results,excel_file,ma_town):
     
     return excel_file
 
-#upload report to SIC directory and optionally remove older files
-def sftp_file(local_file,library):
+# upload report to SIC directory and optionally remove older files
+def sftp_file(local_file, file_name, library):
 
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+    # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    srv = pysftp.Connection(
-        host=config["sic"]["sic_host"],
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["sic"]["sic_host"],
         username=config["sic"]["sic_user"],
-        password=config["sic"]["sic_pw"],
-        cnopts=cnopts,
+        password=config["sic"]["sic_pw"]
     )
+    sftp = ssh.open_sftp()
 
     local_file = local_file
+    remote_path = "/reports/Library-Specific Reports/{}/New Patrons with Data Errors".format(library)
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
 
-    srv.cwd('/reports/Library-Specific Reports/'+library+'/New Patrons with Data Errors/')
-    srv.put(local_file)
+    cutoff_time = datetime.now() - timedelta(days=90)
+    for entry in sftp.listdir_attr(remote_path):
+        if not entry.st_mode & 0o40000:  # 0o40000 is S_IFDIR
+            file_time = datetime.fromtimestamp(entry.st_mtime)
+            if file_time < cutoff_time and entry.filename != "meta.json":
+                full_path = remote_path + "/{}".format(entry.filename)
+                sftp.remove(full_path)
 
-    #remove old file
-
-    for fname in srv.listdir_attr():
-        fullpath = '/reports/Library-Specific Reports/'+library+'/New Patrons with Data Errors/{}'.format(fname.filename)
-        #time tracked in seconds, st_mtime is time last modified
-        name = str(fname.filename)
-        if (name != 'meta.json') and ((time.time() - fname.st_mtime) // (24 * 3600) >= 90):
-            srv.remove(fullpath)
-
-    srv.close()
+    sftp.close()
     os.remove(local_file)
 
 
@@ -322,13 +323,16 @@ def main(library,libcode,ptypes,ma_town = None):
         ORDER BY 2,1
         """
         query_results = run_query(query,ptypes)
+
         #Name of Excel File
-        excel_file =  "/Scripts/New Patrons With Data Errors/Temp Files/" + libcode + "NewPatronsWithDataErrors{}.xlsx".format(date.today())
+        file_name = "{}NewPatronsWithDataErrors{}.xlsx".format(libcode,date.today())
+        excel_file =  "/Scripts/New Patrons With Data Errors/Temp Files/{}".format(file_name)
+
         if ma_town == None:
             academic_excel_writer(query_results,excel_file)
         else:    
             excel_writer(query_results,excel_file,ma_town)
-        sftp_file("C:\\Scripts\\New Patrons With Data Errors\\Temp Files\\" + libcode + "NewPatronsWithDataErrors{}.xlsx".format(date.today()),library)
+        sftp_file(excel_file, file_name, library)
 
     except:
         # read config file with recipient list for email

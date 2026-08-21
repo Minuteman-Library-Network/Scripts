@@ -11,11 +11,11 @@ Upload file to staff site via sftp for distribution to staff
 import psycopg2
 import xlsxwriter
 import os
-import pysftp
+import paramiko
 import configparser
 import sys
 import time
-from datetime import date
+from datetime import date, datetime, timedelta
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -629,44 +629,37 @@ def excel_writer(query_results,excel_file):
     return excel_file
 
 # upload report to SIC directory and optionally remove older files
-def sftp_file(local_file, library):
+def sftp_file(local_file, file_name, library):
 
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+    # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    srv = pysftp.Connection(
-        host=config["sic"]["sic_host"],
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["sic"]["sic_host"],
         username=config["sic"]["sic_user"],
-        password=config["sic"]["sic_pw"],
-        cnopts=cnopts,
+        password=config["sic"]["sic_pw"]
     )
+    sftp = ssh.open_sftp()
 
     local_file = local_file
+    remote_path = "/reports/Library-Specific Reports/{}/Purchase Alert".format(library)
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
 
-    srv.cwd(
-        "/reports/Library-Specific Reports/"
-        + library
-        + "/Purchase Alert/"
-    )
-    srv.put(local_file)
+    cutoff_time = datetime.now() - timedelta(days=90)
+    for entry in sftp.listdir_attr(remote_path):
+        if not entry.st_mode & 0o40000:  # 0o40000 is S_IFDIR
+            file_time = datetime.fromtimestamp(entry.st_mtime)
+            if file_time < cutoff_time and entry.filename != "meta.json":
+                full_path = remote_path + "/{}".format(entry.filename)
+                sftp.remove(full_path)
 
-    for fname in srv.listdir_attr():
-        fullpath = (
-            "/reports/Library-Specific Reports/"
-            + library
-            + "/Purchase Alert/{}".format(fname.filename)
-        )
-        # time tracked in seconds, st_mtime is time last modified
-        name = str(fname.filename)
-        if (name != "meta.json") and (
-            (time.time() - fname.st_mtime) // (24 * 3600) >= 90
-        ):
-            srv.remove(fullpath)
-
-    srv.close()
+    sftp.close()
     os.remove(local_file)
 
 
@@ -870,9 +863,10 @@ def main():
         """
     query_results = run_query(query)
     #Name of Excel File
-    excel_file =  "/Scripts/Purchase Alert/Temp Files/WSNPurchaseAlertCustom{}.xlsx".format(date.today())
+    file_name = "WSNPurchaseAlertCustom{}.xlsx".format(date.today())
+    excel_file =  "/Scripts/Purchase Alert/Temp Files/{}".format(file_name)
     excel_writer(query_results,excel_file)
-    sftp_file("C:\\Scripts\\Purchase Alert\\Temp Files\\WSNPurchaseAlertCustom{}.xlsx".format(date.today()), 'Weston')
+    sftp_file(excel_file, file_name, 'Weston')
 
 # run main function and send error email to admin of script encounters an error
 if __name__ == "__main__":

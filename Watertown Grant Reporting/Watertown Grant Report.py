@@ -12,7 +12,7 @@ for the reporting of a grant in Watertown
 import configparser
 import xlsxwriter
 import psycopg2
-import pysftp
+import paramiko
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -22,9 +22,6 @@ from email import encoders
 import traceback
 from datetime import date
 import os
-
-# from oauth2client.service_account import ServiceAccountCredentials
-# from googleapiclient.discovery import build
 
 
 # function takes a sql query as a parameter, connects to a database and returns the results
@@ -88,29 +85,29 @@ def excel_writer(query_results, excel_file):
 
 
 # upload report to SIC directory and optionally remove older files
-def sftp_file(local_file):
+def sftp_file(local_file, file_name, library):
 
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+    # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    srv = pysftp.Connection(
-        host=config["sic"]["sic_host"],
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["sic"]["sic_host"],
         username=config["sic"]["sic_user"],
-        password=config["sic"]["sic_pw"],
-        cnopts=cnopts,
+        password=config["sic"]["sic_pw"]
     )
+    sftp = ssh.open_sftp()
 
     local_file = local_file
+    remote_path = "/reports/Library-Specific Reports/{}/Custom".format(library)
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
 
-    # upload file
-    srv.cwd("/reports/Library-Specific Reports/Watertown/Custom/")
-    srv.put(local_file)
-    # close sftp connection
-    srv.close()
-    # remove local copy of file
+    sftp.close()
     os.remove(local_file)
 
 
@@ -205,21 +202,12 @@ def main():
     """
 
     # run query and write results to an excel file
-    results = run_query(query)
-    # Name of Excel File
-    excel_file = (
-        "/Scripts/Watertown Grant Reporting/Temp Files/WATGrantReport{}.xlsx".format(
-            date.today()
-        )
-    )
-    excel_writer(results, excel_file)
-
-    # sftp file to intranet site for distribution and delete local copy upon transfer
-    sftp_file(
-        "C:\\Scripts\\Watertown Grant Reporting\\Temp Files\\WATGrantReport{}.xlsx".format(
-            date.today()
-        )
-    )
+    query_results = run_query(query)
+    #Name of Excel File
+    file_name = "WATGrantReport{}.xlsx".format(date.today())
+    excel_file =  "/Scripts/Watertown Grant Reporting/Temp Files/{}".format(file_name)
+    excel_writer(query_results,excel_file)
+    sftp_file(excel_file, file_name, 'Watertown')
 
 
 # run main function and send error email to admin of script encounters an error
