@@ -9,10 +9,10 @@ run in py313
 
 import re
 import os
-import paramiko
+import pysftp
 import configparser
 import time
-from datetime import date, datetime, timedelta
+from datetime import date
 from docx import Document
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -349,7 +349,7 @@ def create_mailing_ready_version(
             display_name = "Winchester"
         if "WOB" in group_name:
             display_name = "Woburn"
-        sftp_file(filepath, filename, display_name)
+        ftp_file(filepath, display_name)
 
 
 def preview_library_grouping(input_file_path):
@@ -409,39 +409,41 @@ def preview_library_grouping(input_file_path):
 
 
 # upload report to SIC directory and optionally remove older files
-def sftp_file(local_file, file_name, library, keep_local=False):
+def ftp_file(local_file, library, keep_local=False):
 
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    # establish ssh client
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    cnopts = pysftp.CnOpts()
+    cnopts.hostkeys = None
     
-    # connect to sftp server
-    ssh.connect(
-        hostname=config["sic"]["sic_host"],
+    srv = pysftp.Connection(
+        host=config["sic"]["sic_host"],
         username=config["sic"]["sic_user"],
-        password=config["sic"]["sic_pw"]
+        password=config["sic"]["sic_pw"],
+        cnopts=cnopts,
     )
-    sftp = ssh.open_sftp()
 
     local_file = local_file
-    remote_path = "/reports/Library-Specific Reports/{}/Bills".format(library)
-    remote_path_to_file = remote_path + "/{}".format(file_name)
-    sftp.put(local_file, remote_path_to_file)
+    srv.cwd("/reports/Library-Specific Reports/" + library + "/Bills/")
+    print("/reports/Library-Specific Reports/" + library + "/Bills/")
+    srv.put(local_file)
 
-    # remove old files
-    cutoff_time = datetime.now() - timedelta(days=45)
+    # remove old file
+
     retain = ["FY21", "FY22", "Fy22", "FY23", "fy23", "FY24", "Archive", "meta.json"]
-    for entry in sftp.listdir_attr(remote_path):
-        if not entry.st_mode & 0o40000:  # 0o40000 is S_IFDIR
-            file_time = datetime.fromtimestamp(entry.st_mtime)
-            if file_time < cutoff_time and entry.filename not in retain:
-                full_path = remote_path + "/{}".format(entry.filename)
-                sftp.remove(full_path)
+    for fname in srv.listdir_attr():
+        fullpath = (
+            "/reports/Library-Specific Reports/"
+            + library
+            + "/Bills/{}".format(fname.filename)
+        )
+        # time tracked in seconds, st_mtime is time last modified
+        name = str(fname.filename)
+        if name not in retain and ((time.time() - fname.st_mtime) // (24 * 3600) >= 45):
+            srv.remove(fullpath)
 
-    sftp.close()
+    srv.close()
 
     # Only remove local file if keep_local is False
     if not keep_local:

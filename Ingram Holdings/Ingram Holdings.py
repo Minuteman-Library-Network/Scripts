@@ -15,7 +15,7 @@ import re
 import pymarc
 import configparser
 import os
-import pysftp
+import paramiko
 from datetime import date
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -88,26 +88,30 @@ def marc_writer(query_data, marc_file):
 
 
 # function to sftp a specified file
-def sftp_file(file, library):
+def sftp_file(local_file, file_name, library):
     config = configparser.ConfigParser(interpolation=None)
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    # set connection option to disable check for host key
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+   # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    # open sftp connection
-    srv = pysftp.Connection(
-        host=config["ingram"]["host"],
+
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["ingram"]["host"],
         username=config["ingram"]["user_" + library],
         password=config.get("ingram","pw_" + library,raw=True),
-        cnopts=cnopts,
     )
-    # upload specified file to root directory
-    srv.put(file)
+    sftp = ssh.open_sftp()
+
+    local_file = local_file
+    remote_path_to_file = "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
 
     # close connection
-    srv.close()
+    sftp.close()
+    os.remove(local_file)
 
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
@@ -153,23 +157,14 @@ def main(library):
         query_results = run_query(query)
 
         # generate marc file based on those query results
-        marc_file_name = (
-            "/Scripts/Ingram Holdings/Temp_Files/"
-            + library
-            + "_holdings{}.mrc".format(date.today())
-        )
-        marc_file = marc_writer(query_results, marc_file_name)
+        marc_file_name = library + "_holdings{}.mrc".format(date.today())
+        marc_file = "/Scripts/Ingram Holdings/Temp Files/{}".format(marc_file_name)
+        marc_file = marc_writer(query_results, marc_file)
 
         # sftp file to Ingram
-        sftp_file(
-            "C:\\Scripts\\Ingram Holdings\\Temp_Files\\"
-            + library
-            + "_holdings{}.mrc".format(date.today()),
-            library,
-        )
+        sftp_file(marc_file,marc_file_name,library)
 
-        # delete file once script is complete
-        os.remove(marc_file)
+
     except Exception:
         # read config file with recipient list for email
         config_recipient = configparser.ConfigParser()
@@ -193,4 +188,3 @@ if __name__ == "__main__":
     main("nor")
     main("som")
     main("win")
-    

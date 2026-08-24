@@ -13,7 +13,7 @@ Contact Info: jgoldstein@minlib.net
 import psycopg2
 import csv
 import os
-import pysftp
+import paramiko
 import configparser
 from datetime import date
 import smtplib
@@ -61,7 +61,7 @@ def csv_writer(query_results, headers, csv_file):
     return csv_file
 
 # function to sftp a specified file
-def sftp_file(file, library):
+def sftp_file(local_file, file_name, library):
     """
     config.ini contains data like the following
     [orangeboy]
@@ -72,24 +72,24 @@ def sftp_file(file, library):
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    # set connection option to disable check for host key
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
-    
-    # open sftp connection
-    srv = pysftp.Connection(
-        host=config["orangeboy"]["host"],
-        username=config["orangeboy"]["user_" + library],
-        private_key=config["orangeboy"]["key_" + library],
-        cnopts=cnopts,
-    )
-    # upload specified file to root directory
-    srv.put(file)
+    # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    # close connection
-    srv.close()
-    # remove local copy when done
-    os.remove(file)
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["orangeboy"]["host"],
+        username=config["orangeboy"]["user_" + library],
+        key_filename=config["orangeboy"]["key_" + library]
+    )
+    sftp = ssh.open_sftp()
+
+    remote_path = "/uploads"
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
+    
+    sftp.close()
+    os.remove(local_file)
 
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
@@ -134,13 +134,15 @@ def main(library):
         circ_query = open(library + "_circulation.sql","r").read()
         patron_query = open(library + "_patron.sql","r").read()
 
-        circ_file_name = "/Scripts/Orange Boy/Temp Files/" + library + "_circulation_{}.csv".format(date.today().strftime('%m-%d-%Y'))
-        patron_file_name = "/Scripts/Orange Boy/Temp Files/" + library + "_patron_{}.csv".format(date.today().strftime('%m-%d-%Y'))
+        circ_file_name = library + "_circulation_{}.csv".format(date.today().strftime('%m-%d-%Y'))
+        circ_file = "/Scripts/Orange Boy/Temp Files/{}".format(circ_file_name)
+        patron_file_name = library + "_patron_{}.csv".format(date.today().strftime('%m-%d-%Y'))
+        patron_file = "/Scripts/Orange Boy/Temp Files/{}".format(patron_file_name)
 
-        circ_file_csv = run_query(circ_query,circ_file_name)
-        sftp_file(circ_file_csv,library)
-        patron_file_csv = run_query(patron_query,patron_file_name)
-        sftp_file(patron_file_csv,library)
+        circ_file_csv = run_query(circ_query,circ_file)
+        sftp_file(circ_file_csv, circ_file_name, library)
+        patron_file_csv = run_query(patron_query,patron_file)
+        sftp_file(patron_file_csv, patron_file_name, library)
 
     except Exception:
         # read config file with recipient list for email
@@ -160,4 +162,5 @@ def main(library):
 main('NEWTON')
 main('NATICK')
 main('BROOKLINE')
+main('MEDFORD')
 
