@@ -803,7 +803,7 @@ def main(library,library_code,acq_unit):
         query_results = run_query(query)
         # Name of Excel File, Concord has requested a multi-branch version of the report
         if library_code == 'co':
-            file_name = "CONALLPurchaseAlert{}.xlsx".format(upper(),date.today())
+            file_name = "CONALLPurchaseAlert{}.xlsx".format(date.today())
         else:
             # Standard Name of Excel File
             file_name = "{}PurchaseAlert{}.xlsx".format(library_code.upper(),date.today())

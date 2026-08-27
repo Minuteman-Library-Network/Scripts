@@ -12,7 +12,7 @@ Gather daily collection data for LibraryIQ and FTP results as csv files
 import psycopg2
 import csv
 import configparser
-import pysftp
+import paramiko
 import os
 from datetime import datetime
 from datetime import date
@@ -175,37 +175,33 @@ def run_large_query(csv_file):
     return csv_file
 
 
-# function to sftp a specified file
-def sftp_file(file):
-    """
-    config.ini contains data like the following
-    [libraryiq]
-    host = ftp.xxx.xxx
-    user = username
-    pw = password
-    """
+# upload report to SIC directory and optionally remove older files
+def sftp_file(local_file, file_name):
+
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    # set connection option to disable check for host key
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+    # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    # open sftp connection
-    srv = pysftp.Connection(
-        host=config["libraryiq"]["host"],
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["libraryiq"]["host"],
         username=config["libraryiq"]["user"],
-        password=config["libraryiq"]["pw"],
-        cnopts=cnopts,
+        password=config["libraryiq"]["pw"]
     )
+    sftp = ssh.open_sftp()
 
-    # change directory to upload and upload file there
-    srv.cwd("/upload")
-    srv.put(file)
+    local_file = local_file
+    remote_path = "/upload"
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
+
     # close sftp connection
-    srv.close()
+    sftp.close()
     # delete local file once uploaded
-    os.remove(file)
+    os.remove(local_file)
 
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
@@ -697,47 +693,55 @@ def main():
     """
 
     # Instantiate .csv files with names including today's date
-    bibs_file = "Biblio_{}.csv".format(date.today().strftime("%Y%m%d"))
-    items_file = "Items_{}.csv".format(date.today().strftime("%Y%m%d"))
-    holds_file = "Holds_{}.csv".format(date.today().strftime("%Y%m%d"))
-    patrons_file = "Patrons_{}.csv".format(date.today().strftime("%Y%m%d"))
-    circ_file = "Circ_{}.csv".format(date.today().strftime("%Y%m%d"))
-    fulfilled_holds_file = "Holds_Fulfilled_{}.csv".format(
+    bibs_file_name = "Biblio_{}.csv".format(date.today().strftime("%Y%m%d"))
+    bibs_file = "/Scripts/LibraryIQ/Temp Files/{}".format(bibs_file_name)
+    items_file_name = "Items_{}.csv".format(date.today().strftime("%Y%m%d"))
+    items_file = "/Scripts/LibraryIQ/Temp Files/{}".format(items_file_name)
+    holds_file_name = "Holds_{}.csv".format(date.today().strftime("%Y%m%d"))
+    holds_file = "/Scripts/LibraryIQ/Temp Files/{}".format(holds_file_name)
+    patrons_file_name = "Patrons_{}.csv".format(date.today().strftime("%Y%m%d"))
+    patrons_file = "/Scripts/LibraryIQ/Temp Files/{}".format(patrons_file_name)
+    circ_file_name = "Circ_{}.csv".format(date.today().strftime("%Y%m%d"))
+    circ_file = "/Scripts/LibraryIQ/Temp Files/{}".format(circ_file_name)
+    fulfilled_holds_file_name = "Holds_Fulfilled_{}.csv".format(
         date.today().strftime("%Y%m%d")
     )
-    requested_holds_file = "Holds_Requested_{}.csv".format(
+    fulfilled_holds_file = "/Scripts/LibraryIQ/Temp Files/{}".format(fulfilled_holds_file_name)
+    requested_holds_file_name = "Holds_Requested_{}.csv".format(
         date.today().strftime("%Y%m%d")
     )
-    unfilled_holds_file = "Holds_Unfilled_{}.csv".format(
+    requested_holds_file = "/Scripts/LibraryIQ/Temp Files/{}".format(requested_holds_file_name)
+    unfilled_holds_file_name = "Holds_Unfilled_{}.csv".format(
         date.today().strftime("%Y%m%d")
     )
-    on_order_file = "OrderedItems_{}.csv".format(date.today().strftime("%Y%m%d"))
+    unfilled_holds_file = "/Scripts/LibraryIQ/Temp Files/{}".format(unfilled_holds_file_name)
+    on_order_file_name = "OrderedItems_{}.csv".format(date.today().strftime("%Y%m%d"))
+    on_order_file = "/Scripts/LibraryIQ/Temp Files/{}".format(on_order_file_name)
 
     # for each file, run associated query, populate the file, and sftp it to libraryiq
     bibs_csv = run_query(bibs_query, bibs_file)
-    sftp_file(bibs_csv)
+    sftp_file(bibs_csv, bibs_file_name)
     holds_csv = run_query(holds_query, holds_file)
-    sftp_file(holds_csv)
+    sftp_file(holds_csv, holds_file_name)
     patrons_csv = run_query(patrons_query, patrons_file)
-    sftp_file(patrons_csv)
+    sftp_file(patrons_csv, patrons_file_name)
     circ_csv = run_query(circ_query, circ_file)
-    sftp_file(circ_csv)
+    sftp_file(circ_csv, circ_file_name)
     fulfilled_holds_csv = run_query(fulfilled_holds_query, fulfilled_holds_file)
-    sftp_file(fulfilled_holds_csv)
+    sftp_file(fulfilled_holds_csv, fulfilled_holds_file_name)
     requested_holds_csv = run_query(requested_holds_query, requested_holds_file)
-    sftp_file(requested_holds_csv)
+    sftp_file(requested_holds_csv, requested_holds_file_name)
     unfilled_holds_csv = run_query(unfilled_holds_query, unfilled_holds_file)
-    sftp_file(unfilled_holds_csv)
+    sftp_file(unfilled_holds_csv, unfilled_holds_file_name)
     on_order_csv = run_query(on_order_query, on_order_file)
-    sftp_file(on_order_csv)
+    sftp_file(on_order_csv, on_order_file_name)
 
     # On Friday run full item file using runlargequery(), other days use runquery() for delta file only
     if datetime.now().weekday() == 4:
         items_csv = run_large_query(items_file)
     else:
         items_csv = run_query(items_query, items_file)
-    sftp_file(items_csv)
-    
+    sftp_file(items_csv, items_file_name)
 
 
 # run main function and send error email to admin of script encounters an error

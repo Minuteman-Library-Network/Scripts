@@ -20,10 +20,10 @@ import psycopg2
 import configparser
 import plotly.graph_objects as go
 import os
-import pysftp
+import paramiko
 import sys
 import time
-from datetime import date
+from datetime import date, datetime, timedelta
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -139,42 +139,38 @@ def gen_map(patron_df, lat, lon, mapzoom):
 
 
 # upload report to SIC directory and optionally remove older files
-def sftp_file(local_file, library):
+def sftp_file(local_file, file_name, library):
 
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+    # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    srv = pysftp.Connection(
-        host=config["sic"]["sic_host"],
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["sic"]["sic_host"],
         username=config["sic"]["sic_user"],
-        password=config["sic"]["sic_pw"],
-        cnopts=cnopts,
+        password=config["sic"]["sic_pw"]
     )
+    sftp = ssh.open_sftp()
 
     local_file = local_file
+    remote_path = "/reports/Library-Specific Reports/{}/Patron Maps".format(library)
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
 
-    srv.cwd("/reports/Library-Specific Reports/" + library + "/Patron Maps/")
+    cutoff_time = datetime.now() - timedelta(days=90)
+    for entry in sftp.listdir_attr(remote_path):
+        if not entry.st_mode & 0o40000:  # 0o40000 is S_IFDIR
+            file_time = datetime.fromtimestamp(entry.st_mtime)
+            if file_time < cutoff_time and entry.filename != "meta.json":
+                full_path = remote_path + "/{}".format(entry.filename)
+                sftp.remove(full_path)
 
-    # remove old file
-    for fname in srv.listdir_attr():
-        fullpath = (
-            "/reports/Library-Specific Reports/"
-            + library
-            + "/Patron Maps/{}".format(fname.filename)
-        )
-        name = str(fname.filename)
-        if name.startswith("CardholderPct.html") and (
-            (time.time() - fname.st_mtime) // (24 * 3600) >= 90
-        ):
-            srv.remove(fullpath)
-
-    # upload file
-    srv.put(local_file)
     # close sftp connection
-    srv.close()
+    sftp.close()
     # remove local copy of file
     os.remove(local_file)
 
@@ -265,13 +261,11 @@ def main(library, tracts, lat, lon, mapzoom):
         # generate map based on dataframe and coordinates provided in order to center and zoom it appropriately
         gen_map(df, lat, lon, mapzoom)
 
+        file_name = "CardholderPct{}.html".format(date.today())
+        map_file = "/Scripts/Patron Maps/Temp Files/{}".format(file_name)
         # upload file and delete local copy
-        sftp_file(
-            "C:\\Scripts\\Patron Maps\\Temp Files\\CardholderPct{}.html".format(
-                date.today()
-            ),
-            library,
-        )
+        sftp_file(map_file, file_name, library)
+
     except:
         # read config file with recipient list for email
         config_recipient = configparser.ConfigParser()

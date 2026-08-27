@@ -15,7 +15,7 @@ that is then uploaded to our staff intranet site for distribution, via sftp.
 import psycopg2
 import pandas as pd
 import os
-import pysftp
+import paramiko
 import configparser
 import sys
 import time
@@ -77,29 +77,29 @@ def excel_writer_pandas(query_results,headers,excel_file):
 
 
 # upload report to SIC directory and optionally remove older files
-def sftp_file(local_file):
+def sftp_file(local_file, file_name):
 
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+    # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    srv = pysftp.Connection(
-        host=config["sic"]["sic_host"],
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["sic"]["sic_host"],
         username=config["sic"]["sic_user"],
-        password=config["sic"]["sic_pw"],
-        cnopts=cnopts,
+        password=config["sic"]["sic_pw"]
     )
+    sftp = ssh.open_sftp()
 
     local_file = local_file
+    remote_path = "/reports/Network-Wide Reports/New By Location"
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
 
-    srv.cwd(
-        "/reports/Network-Wide Reports/New By Location/"
-    )
-    srv.put(local_file)
-
-    srv.close()
+    sftp.close()
     os.remove(local_file)
 
 
@@ -178,10 +178,10 @@ def main():
        
     query_results, headers = run_query(query)
     # Name of Excel File
-    excel_file = ("/Scripts/New Items By Location/Temp Files/MLNNewByLocation{}.xlsx".format((date.today().replace(day=1) - timedelta(1)).strftime("%b%Y")))
+    file_name = "MLNNewByLocation{}.xlsx".format((date.today().replace(day=1) - timedelta(1)).strftime("%b%Y"))
+    excel_file =  "/Scripts/New Items By Location/Temp Files/{}".format(file_name)
     excel_writer_pandas(query_results, headers, excel_file)
-    sftp_file("C:\\Scripts\\New Items By Location\\Temp Files\\MLNNewByLocation{}.xlsx".format((date.today().replace(day=1) - timedelta(1)).strftime("%b%Y")))
-
+    sftp_file(excel_file, file_name)
 
 # run main function and send error email to admin of script encounters an error
 if __name__ == "__main__":

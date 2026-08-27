@@ -13,7 +13,7 @@ Saves lists as Excel documents, which are upload to our intranet site for distri
 import psycopg2
 import xlsxwriter
 import os
-import pysftp
+import paramiko
 import configparser
 import sys
 import time
@@ -106,31 +106,29 @@ def excel_writer(query_results,excel_file):
 
 
 # upload report to SIC directory and optionally remove older files
-def sftp_file(local_file, library):
+def sftp_file(local_file, file_name, library):
 
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+    # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    srv = pysftp.Connection(
-        host=config["sic"]["sic_host"],
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["sic"]["sic_host"],
         username=config["sic"]["sic_user"],
-        password=config["sic"]["sic_pw"],
-        cnopts=cnopts,
+        password=config["sic"]["sic_pw"]
     )
+    sftp = ssh.open_sftp()
 
     local_file = local_file
+    remote_path = "/reports/Library-Specific Reports/{}/Withdrawn Items".format(library)
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
 
-    srv.cwd(
-        "/reports/Library-Specific Reports/"
-        + library
-        + "/Withdrawn Items/"
-    )
-    srv.put(local_file)
-
-    srv.close()
+    sftp.close()
     os.remove(local_file)
 
 def send_email_error(subject, message, recipient):
@@ -206,18 +204,10 @@ def main(library,libcode):
       """
       query_results = run_query(query)
       # Name of Excel File
-      excel_file = (
-            "/Scripts/Withdrawn/Temp Files/"
-            + libcode
-            + "WithdrawnItems{}.xlsx".format((date.today().replace(day=1) - timedelta(4)).strftime("%b%Y"))
-        )
+      file_name = "{}WithdrawnItems{}.xlsx".format(libcode, (date.today().replace(day=1) - timedelta(4)).strftime("%b%Y"))
+      excel_file = "/Scripts/Withdrawn/Temp Files/{}".format(file_name)
       excel_writer(query_results, excel_file)
-      sftp_file(
-            "C:\\Scripts\\Withdrawn\\Temp Files\\"
-            + libcode
-            + "WithdrawnItems{}.xlsx".format((date.today().replace(day=1) - timedelta(4)).strftime("%b%Y")),
-            library,
-        )
+      sftp_file(excel_file, file_name, library)
 
     except:
       # read config file with recipient list for email

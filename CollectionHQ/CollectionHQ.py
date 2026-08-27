@@ -114,7 +114,7 @@ def send_email_error(subject, message, recipient):
     smtp.quit()
 
 def main():
-    bibs_query = """\
+    bibs_query = r"""
     SELECT
       rm.record_type_code||rm.record_num AS bib_record_num,
       rm.creation_date_gmt::DATE AS creation_date,
@@ -131,22 +131,27 @@ def main():
   
     FROM sierra_view.bib_record_property b
     JOIN sierra_view.bib_record_location bl
-      ON b.bib_record_id = bl.bib_record_id AND bl.location_code ~ '^na[^2]'
+      ON b.bib_record_id = bl.bib_record_id 
     JOIN sierra_view.record_metadata rm
       ON b.bib_record_id = rm.id
-    LEFT JOIN sierra_view.subfield num
-      ON b.bib_record_id = num.record_id AND num.marc_tag IN ('020','022','024') AND num.tag = 'a'
-    LEFT JOIN sierra_view.subfield pub
-      ON b.bib_record_id = pub.record_id AND pub.marc_tag IN ('260','264') AND pub.tag = 'b'
-    LEFT JOIN sierra_view.phrase_entry sub
-      ON b.bib_record_id = sub.record_id AND sub.varfield_type_code = 'd'
     JOIN sierra_view.material_property_myuser mp
       ON b.material_code = mp.code
+    LEFT JOIN sierra_view.subfield num
+      ON b.bib_record_id = num.record_id
+      AND num.marc_tag IN ('020','022','024') AND num.tag = 'a'
+    LEFT JOIN sierra_view.subfield pub
+      ON b.bib_record_id = pub.record_id
+      AND pub.marc_tag IN ('260','264') AND pub.tag = 'b'
+    LEFT JOIN sierra_view.phrase_entry sub
+      ON b.bib_record_id = sub.record_id
+      AND sub.varfield_type_code = 'd'
+    
+    WHERE bl.location_code ~ '^na[^2]'
 
     GROUP BY 1,2,3,7,8,9,10,12
     """
 
-    items_query = """\
+    items_query = r"""
     SELECT
       rmb.record_type_code||rmb.record_num AS bib_record_num,
       rmi.record_type_code||rmi.record_num AS item_record_num,
@@ -166,8 +171,8 @@ def main():
       o.due_gmt::DATE AS due_date,
       CASE
         WHEN o.ptype IN ('26','42','43','126','200','201','202','203','204','205','206','207','326') THEN pt.name 
-    	WHEN o.ptype IS NULL THEN NULL
-	    ELSE 'Other'
+    	  WHEN o.ptype IS NULL THEN NULL
+	      ELSE 'Other'
       END AS patron_type,
       i.last_checkout_gmt::DATE AS last_checkout_date,
       i.last_checkin_gmt::DATE AS last_checking_date,
@@ -185,28 +190,31 @@ def main():
  
     FROM sierra_view.item_record i
     JOIN sierra_view.item_record_property ip
-      ON i.id = ip.item_record_id AND i.location_code ~ '^na[^2]'
+      ON i.id = ip.item_record_id
     JOIN sierra_view.bib_record_item_record_link l
       ON i.id = l.item_record_id
     JOIN sierra_view.record_metadata rmb
       ON l.bib_record_id = rmb.id
     JOIN sierra_view.record_metadata rmi
       ON i.id = rmi.id
-    LEFT JOIN sierra_view.checkout o
-      ON i.id = o.item_record_id
-    LEFT JOIN sierra_view.ptype_property_myuser pt
-      ON o.ptype = pt.value
     JOIN sierra_view.itype_property_myuser it
       ON i.itype_code_num = it.code
     JOIN sierra_view.item_status_property_myuser status
       ON i.item_status_code = status.code
+    LEFT JOIN sierra_view.checkout o
+      ON i.id = o.item_record_id
+    LEFT JOIN sierra_view.ptype_property_myuser pt
+      ON o.ptype = pt.value
     LEFT JOIN sierra_view.varfield note
-      ON i.id = note.record_id AND note.varfield_type_code = 'x'
+      ON i.id = note.record_id
+      AND note.varfield_type_code = 'x'
+   
+    WHERE i.location_code ~ '^na[^2]'
   
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,21
     """
 
-    circ_query = """\
+    circ_query = r"""
     SELECT
       ip.barcode,
       CASE
@@ -235,14 +243,16 @@ def main():
       pt.name AS patron_type
   
     FROM sierra_view.circ_trans t
-    LEFT JOIN sierra_view.item_record i
-      ON t.item_record_id = i.id AND i.location_code ~ '^na[^2]'
-    LEFT JOIN sierra_view.item_record_property ip
-      ON i.id = ip.item_record_id
     JOIN sierra_view.statistic_group_myuser sg
-      ON t.stat_group_code_num = sg.code AND t.op_code !~ '^(n|h)'
+      ON t.stat_group_code_num = sg.code
+      AND t.op_code !~ '^(n|h)'
     JOIN sierra_view.ptype_property_myuser pt
       ON t.ptype_code = pt.value::VARCHAR
+    LEFT JOIN sierra_view.item_record i
+      ON t.item_record_id = i.id
+      AND i.location_code ~ '^na[^2]'
+    LEFT JOIN sierra_view.item_record_property ip
+      ON i.id = ip.item_record_id
     LEFT JOIN sierra_view.item_status_property_myuser status
       ON i.item_status_code = status.code
     LEFT JOIN sierra_view.checkout o
@@ -258,9 +268,9 @@ def main():
     """
 
     # Instantiate .csv files with names including today's date
-    circ_file = 'Transactions_{}.csv'.format(date.today().strftime('%Y%m%d'))
-    bibs_file = 'Bibs_{}.csv'.format(date.today().strftime('%Y%m%d'))
-    items_file = 'Items_{}.csv'.format(date.today().strftime('%Y%m%d'))
+    circ_file = '/Scripts/CollectionHQ/Temp Files/Transactions_{}.csv'.format(date.today().strftime('%Y%m%d'))
+    bibs_file = '/Scripts/CollectionHQ/Temp Files/Bibs_{}.csv'.format(date.today().strftime('%Y%m%d'))
+    items_file = '/Scripts/CollectionHQ/Temp Files/Items_{}.csv'.format(date.today().strftime('%Y%m%d'))
     
     # for each file, run associated query, populate the file, and ftp it to CollectionHQ
     circ_csv = run_query(circ_query,circ_file)

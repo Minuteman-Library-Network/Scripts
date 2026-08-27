@@ -13,7 +13,7 @@ Saves lists as HTML tables, which are upload to our intranet site for distributi
 import psycopg2
 import pandas as pd
 import os
-import pysftp
+import paramiko
 import configparser
 import sys
 import time
@@ -95,31 +95,29 @@ def html_writer(query_results,html_file):
         f.write(html)
 
 # upload report to SIC directory and optionally remove older files
-def sftp_file(local_file, library):
+def sftp_file(local_file, file_name, library):
 
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+    # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    srv = pysftp.Connection(
-        host=config["sic"]["sic_host"],
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["sic"]["sic_host"],
         username=config["sic"]["sic_user"],
-        password=config["sic"]["sic_pw"],
-        cnopts=cnopts,
+        password=config["sic"]["sic_pw"]
     )
+    sftp = ssh.open_sftp()
 
     local_file = local_file
+    remote_path = "/reports/Library-Specific Reports/{}/New Items".format(library)
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
 
-    srv.cwd(
-        "/reports/Library-Specific Reports/"
-        + library
-        + "/New Items/"
-    )
-    srv.put(local_file)
-
-    srv.close()
+    sftp.close()
     os.remove(local_file)
 
 
@@ -188,19 +186,11 @@ def main(library,libcode):
             """
        
         query_results = run_query(query)
-        # Name of html File
-        html_file = (
-            "/Scripts/New Items/Temp Files/"
-            + libcode
-            + "NewItems{}.htm".format((date.today().replace(day=1) - timedelta(3)).strftime("%b%Y"))
-        )
+        # Name of Excel File
+        file_name = "{}NewItems{}.htm".format(libcode, (date.today().replace(day=1) - timedelta(3)).strftime("%b%Y"))
+        html_file = "/Scripts/New Items/Temp Files/{}".format(file_name)
         html_writer(query_results, html_file)
-        sftp_file(
-            "C:\\Scripts\\New Items\\Temp Files\\"
-            + libcode
-            + "NewItems{}.htm".format((date.today().replace(day=1) - timedelta(3)).strftime("%b%Y")),
-            library,
-        )
+        sftp_file(html_file, file_name, library)
 
     except:
       # read config file with recipient list for email

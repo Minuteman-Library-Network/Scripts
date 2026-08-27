@@ -169,8 +169,6 @@ def sftp_file(local_file, file_name, library):
     sftp = ssh.open_sftp()
 
     local_file = local_file
-
-    local_file = local_file
     remote_path = "/reports/Library-Specific Reports/{}/Collection Development By Scat".format(library)
     remote_path_to_file = remote_path + "/{}".format(file_name)
     sftp.put(local_file, remote_path_to_file)

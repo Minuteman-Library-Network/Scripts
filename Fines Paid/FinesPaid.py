@@ -13,7 +13,7 @@ Saves lists as Excel documents, which are upload to our intranet site for distri
 import psycopg2
 import xlsxwriter
 import os
-import pysftp
+import paramiko
 import configparser
 import sys
 import time
@@ -115,28 +115,30 @@ def excel_writer(query_results,excel_file):
 
 
 # upload report to SIC directory and optionally remove older files
-def sftp_file(local_file, library):
+def sftp_file(local_file, file_name, library):
 
     config = configparser.ConfigParser()
     config.read("C:\\Scripts\\Creds\\config.ini")
 
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+    # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
-    srv = pysftp.Connection(
-        host=config["sic"]["sic_host"],
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["sic"]["sic_host"],
         username=config["sic"]["sic_user"],
-        password=config["sic"]["sic_pw"],
-        cnopts=cnopts,
+        password=config["sic"]["sic_pw"]
     )
+    sftp = ssh.open_sftp()
 
     local_file = local_file
+    remote_path = "/reports/Library-Specific Reports/{}/ECommerce".format(library)
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
 
-    srv.cwd("/reports/Library-Specific Reports/" + library + "/ECommerce/")
-    srv.put(local_file)
-
+    sftp.close()
     os.remove(local_file)
-
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
 def send_email_error(subject, message, recipient):
@@ -214,12 +216,12 @@ def main(library, libcode):
           """.format(libcode[0:2].lower())
         query_results = run_query(query)
 
-        # To calculate last month's name
-        last_month = date.today().replace(day=1) - timedelta(1)
         # Name of Excel File
-        excel_file = "/Scripts/Fines Paid/Temp Files/" + libcode + "ECommerce{}.xlsx".format(last_month.strftime("%b%Y"))
-        excel_writer(query_results, excel_file)
-        sftp_file("C:\\Scripts\\Fines Paid\\Temp Files\\" + libcode + "ECommerce{}.xlsx".format(last_month.strftime("%b%Y")),library)
+        file_name = "{}ECommerce{}.xlsx".format(libcode,(date.today().replace(day=1) - timedelta(1)).strftime("%b%Y"))
+        excel_file =  "/Scripts/Fines Paid/Temp Files/{}".format(file_name)
+        excel_writer(query_results,excel_file)
+        sftp_file(excel_file, file_name, library)
+
     except:
         # read config file with recipient list for email
         config_recipient = configparser.ConfigParser()
