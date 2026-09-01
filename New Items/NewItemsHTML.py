@@ -186,11 +186,13 @@ def main(library,libcode):
             """
        
         query_results = run_query(query)
-        # Name of Excel File
-        file_name = "{}NewItems{}.htm".format(libcode, (date.today().replace(day=1) - timedelta(3)).strftime("%b%Y"))
-        html_file = "/Scripts/New Items/Temp Files/{}".format(file_name)
-        html_writer(query_results, html_file)
-        sftp_file(html_file, file_name, library)
+        # skip for cases where a library has no new items
+        if query_results:
+            # Name of Excel File
+            file_name = "{}NewItems{}.htm".format(libcode, (date.today().replace(day=1) - timedelta(3)).strftime("%b%Y"))
+            html_file = "/Scripts/New Items/Temp Files/{}".format(file_name)
+            html_writer(query_results, html_file)
+            sftp_file(html_file, file_name, library)
 
     except:
       # read config file with recipient list for email
