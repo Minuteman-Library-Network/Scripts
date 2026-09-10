@@ -702,25 +702,54 @@ def send_email_error(subject, message, recipient):
 def main():
 	
     query = r"""
-        WITH orders AS (
+        --user to gather copies ordered by location from cmf table
+        WITH orders_by_loc AS(
           SELECT
-            COUNT(oc.order_record_id) FILTER(WHERE o.order_status_code = 'o') AS order_count,
-            SUM(oc.copies) FILTER (WHERE o.order_status_code = 'o') AS order_copies,
-            SUM(oc.copies) FILTER(WHERE o.order_status_code = 'a' AND o.received_date_gmt::DATE >= CURRENT_DATE - INTERVAL '14 days') AS processing_copies,
-            STRING_AGG(DISTINCT(oc.location_code), ',') AS order_locations,
+            bo.bib_record_id,
+            cmf.location_code,
+            SUM(cmf.copies) AS order_copies
+             
+          FROM sierra_view.order_record o
+          JOIN sierra_view.order_record_cmf cmf
+            ON o.id = cmf.order_record_id
+          JOIN sierra_view.bib_record_order_record_link bo
+            ON o.id=bo.order_record_id
+               
+          WHERE (o.order_status_code  = 'o' OR (o.order_status_code = 'a' AND o.received_date_gmt::DATE >= CURRENT_DATE - INTERVAL '14 days'))
+            AND cmf.location_code ~ '^ws'
+            --location will take the form ^oln, which in this example looks for all locations starting with the string oln.
+          GROUP BY 1,2
+        ),
+        
+        orders AS (
+          SELECT
+            CASE
+              WHEN COUNT(DISTINCT ol.location_code) > 1 THEN COUNT(cmf.order_record_id) FILTER(WHERE o.order_status_code = 'o') / COUNT(DISTINCT ol.location_code)
+              ELSE COUNT(cmf.order_record_id) FILTER(WHERE o.order_status_code = 'o')
+            END AS order_count,
+            CASE
+              WHEN COUNT(DISTINCT ol.location_code) > 1 THEN SUM(cmf.copies) FILTER (WHERE o.order_status_code = 'o') / COUNT(DISTINCT ol.location_code)
+              ELSE SUM(cmf.copies) FILTER (WHERE o.order_status_code = 'o')
+            END AS order_copies,
+            CASE
+              WHEN COUNT(DISTINCT ol.location_code) > 1 THEN SUM(cmf.copies) FILTER(WHERE o.order_status_code = 'a' AND o.received_date_gmt::DATE >= CURRENT_DATE - INTERVAL '14 days') / COUNT(DISTINCT ol.location_code)
+              ELSE SUM(cmf.copies) FILTER(WHERE o.order_status_code = 'a' AND o.received_date_gmt::DATE >= CURRENT_DATE - INTERVAL '14 days')
+            END AS processing_copies,
+            STRING_AGG(DISTINCT ol.location_code||' ('||ol.order_copies||')',',') AS order_locations,
             bro.bib_record_id AS bib_id
-        
-    	  FROM sierra_view.order_record o
-    	  JOIN sierra_view.order_record_cmf oc
-    	    ON o.id = oc.order_record_id
-    	  JOIN sierra_view.bib_record_order_record_link bro
-    	    ON o.id=bro.order_record_id
-        
-    	  WHERE o.order_status_code IN ('o','a')
-    	    AND o.accounting_unit_code_num = '39'
-    	    AND oc.location_code ~ '^ws'	
-    	    --location will take the form ^oln, which in this example looks for all locations starting with the string oln.
-          GROUP BY bro.bib_record_id
+               
+          FROM sierra_view.order_record o
+          JOIN sierra_view.order_record_cmf cmf
+            ON o.id = cmf.order_record_id
+          JOIN sierra_view.bib_record_order_record_link bro
+            ON o.id=bro.order_record_id
+          JOIN orders_by_loc ol
+            ON bro.bib_record_id = ol.bib_record_id
+               
+          WHERE (o.order_status_code  = 'o' OR (o.order_status_code = 'a' AND o.received_date_gmt::DATE >= CURRENT_DATE - INTERVAL '14 days'))
+            AND cmf.location_code ~ '^ws'
+            --location will take the form ^oln, which in this example looks for all locations starting with the string oln.
+          GROUP BY 5
         ),
 
         hold_data AS(

@@ -642,28 +642,57 @@ def send_email_error(subject, message, recipient):
     smtp.sendmail(emailfrom, recipient, msg.as_string())
     smtp.quit()
 
-def main(library,library_code,acq_unit):
+def main(library,library_code):
     try:
         query = r"""
-        WITH orders AS (
+        --user to gather copies ordered by location from cmf table
+        WITH orders_by_loc AS(
           SELECT
-            COUNT(oc.order_record_id) FILTER(WHERE o.order_status_code = 'o') AS order_count,
-            SUM(oc.copies) FILTER (WHERE o.order_status_code = 'o') AS order_copies,
-            SUM(oc.copies) FILTER(WHERE o.order_status_code = 'a' AND o.received_date_gmt::DATE >= CURRENT_DATE - INTERVAL '14 days') AS processing_copies,
-            STRING_AGG(DISTINCT(oc.location_code), ',') AS order_locations,
+            bo.bib_record_id,
+            cmf.location_code,
+            SUM(cmf.copies) AS order_copies
+       
+          FROM sierra_view.order_record o
+          JOIN sierra_view.order_record_cmf cmf
+            ON o.id = cmf.order_record_id
+          JOIN sierra_view.bib_record_order_record_link bo
+            ON o.id=bo.order_record_id
+       
+          WHERE (o.order_status_code  = 'o' OR (o.order_status_code = 'a' AND o.received_date_gmt::DATE >= CURRENT_DATE - INTERVAL '14 days'))
+            AND cmf.location_code ~ '^""" + library_code +"""'
+            --location will take the form ^oln, which in this example looks for all locations starting with the string oln.
+          GROUP BY 1,2
+        ),
+
+        orders AS (
+          SELECT
+	        CASE
+              WHEN COUNT(DISTINCT ol.location_code) > 1 THEN COUNT(cmf.order_record_id) FILTER(WHERE o.order_status_code = 'o') / COUNT(DISTINCT ol.location_code)
+		      ELSE COUNT(cmf.order_record_id) FILTER(WHERE o.order_status_code = 'o')
+	        END AS order_count,
+            CASE
+              WHEN COUNT(DISTINCT ol.location_code) > 1 THEN SUM(cmf.copies) FILTER (WHERE o.order_status_code = 'o') / COUNT(DISTINCT ol.location_code)
+              ELSE SUM(cmf.copies) FILTER (WHERE o.order_status_code = 'o')
+	        END AS order_copies,
+            CASE
+              WHEN COUNT(DISTINCT ol.location_code) > 1 THEN SUM(cmf.copies) FILTER(WHERE o.order_status_code = 'a' AND o.received_date_gmt::DATE >= CURRENT_DATE - INTERVAL '14 days') / COUNT(DISTINCT ol.location_code)
+	          ELSE SUM(cmf.copies) FILTER(WHERE o.order_status_code = 'a' AND o.received_date_gmt::DATE >= CURRENT_DATE - INTERVAL '14 days')
+	        END AS processing_copies,
+            STRING_AGG(DISTINCT ol.location_code||' ('||ol.order_copies||')',',') AS order_locations,
             bro.bib_record_id AS bib_id
-        
-    	  FROM sierra_view.order_record o
-    	  JOIN sierra_view.order_record_cmf oc
-    	    ON o.id = oc.order_record_id
-    	  JOIN sierra_view.bib_record_order_record_link bro
-    	    ON o.id=bro.order_record_id
-        
-    	  WHERE o.order_status_code IN ('o','a')
-    	    AND o.accounting_unit_code_num = '""" + acq_unit +"""'
-    	    AND oc.location_code ~ '^""" + library_code +"""'	
-    	    --location will take the form ^oln, which in this example looks for all locations starting with the string oln.
-          GROUP BY bro.bib_record_id
+       
+          FROM sierra_view.order_record o
+          JOIN sierra_view.order_record_cmf cmf
+            ON o.id = cmf.order_record_id
+          JOIN sierra_view.bib_record_order_record_link bro
+            ON o.id=bro.order_record_id
+          JOIN orders_by_loc ol
+            ON bro.bib_record_id = ol.bib_record_id
+       
+          WHERE (o.order_status_code  = 'o' OR (o.order_status_code = 'a' AND o.received_date_gmt::DATE >= CURRENT_DATE - INTERVAL '14 days'))
+            AND cmf.location_code ~ '^""" + library_code +"""'
+            --location will take the form ^oln, which in this example looks for all locations starting with the string oln.
+          GROUP BY 5
         ),
 
         hold_data AS(
@@ -828,65 +857,65 @@ def main(library,library_code,acq_unit):
 
 if __name__ == "__main__":
     # run for each library within Minuteman
-    main('Acton','act','1')
-    main('Acton','ac2','1')
-    main('Arlington','arl','2')
-    main('Arlington','ar2','2')
-    main('Ashland','ash','3')
-    main('Bedford','bed','4')
-    main('Belmont','blm','5')
-    main('Brookline','brk','6')
-    main('Brookline','br2','6')
-    main('Brookline','br3','6')
-    main('Cambridge','cam','7')
-    main('Cambridge','ca3','7')
-    main('Cambridge','ca4','7')
-    main('Cambridge','ca5','7')
-    main('Cambridge','ca6','7')
-    main('Cambridge','ca7','7')
-    main('Cambridge','ca8','7')
-    main('Cambridge','ca9','7')
-    main('Concord','con','8')
-    main('Concord','co2','8')
-    main('Concord','co','8')
-    main('Dedham','ddm','9')
-    main('Dedham','dd2','9')
-    main('Dean','dea','10')
-    main('Dover','dov','11')
-    main('Framingham Public','fpl','12')
-    main('Framingham Public','fp2','12')
-    main('Framingham State','fst','14')
-    main('Franklin','frk','13')
-    main('Holliston','hol','15')
-    main('Lasell','las','16')
-    main('Lexington','lex','17')
-    main('Lincoln','lin','18')
-    main('Maynard','may','19')
-    main('Medfield','mld','23')
-    main('Medford','med','21')
-    main('Medway','mwy','25')
-    main('Millis','mil','22')
-    main('Natick','nat','26')
-    main('Natick','na2','26')
-    main('Needham','nee','28')
-    main('Newton','ntn','30')
-    main('Norwood','nor','29')
-    main('Olin','oln','24')
-    main('Regis','reg','43')
-    main('Sherborn','shr','27')
-    main('Somerville','som','31')
-    main('Somerville','so2','31')
-    main('Somerville','so3','31')
-    main('Stow','sto','32')
-    main('Sudbury','sud','33')
-    main('Waltham','wlm','37')
-    main('Watertown','wat','34')
-    main('Wayland','wyl','41')
-    main('Wellesley','wel','35')
-    main('Wellesley','we2','35')
-    main('Wellesley','we3','35')
-    main('Weston','wsn','39')
-    main('Westwood','wwd','40')
-    main('Westwood','ww2','40')
-    main('Winchester','win','36')
-    main('Woburn','wob','38')
+    main('Acton','act')
+    main('Acton','ac2')
+    main('Arlington','arl')
+    main('Arlington','ar2')
+    main('Ashland','ash')
+    main('Bedford','bed')
+    main('Belmont','blm')
+    main('Brookline','brk')
+    main('Brookline','br2')
+    main('Brookline','br3')
+    main('Cambridge','cam')
+    main('Cambridge','ca3')
+    main('Cambridge','ca4')
+    main('Cambridge','ca5')
+    main('Cambridge','ca6')
+    main('Cambridge','ca7')
+    main('Cambridge','ca8')
+    main('Cambridge','ca9')
+    main('Concord','con')
+    main('Concord','co2')
+    main('Concord','co')
+    main('Dedham','ddm')
+    main('Dedham','dd2')
+    main('Dean','dea')
+    main('Dover','dov')
+    main('Framingham Public','fpl')
+    main('Framingham Public','fp2')
+    main('Framingham State','fst')
+    main('Franklin','frk')
+    main('Holliston','hol')
+    main('Lasell','las')
+    main('Lexington','lex')
+    main('Lincoln','lin')
+    main('Maynard','may')
+    main('Medfield','mld')
+    main('Medford','med')
+    main('Medway','mwy')
+    main('Millis','mil')
+    main('Natick','nat')
+    main('Natick','na2')
+    main('Needham','nee')
+    main('Newton','ntn')
+    main('Norwood','nor')
+    main('Olin','oln')
+    main('Regis','reg')
+    main('Sherborn','shr')
+    main('Somerville','som')
+    main('Somerville','so2')
+    main('Somerville','so3')
+    main('Stow','sto')
+    main('Sudbury','sud')
+    main('Waltham','wlm')
+    main('Watertown','wat')
+    main('Wayland','wyl')
+    main('Wellesley','wel')
+    main('Wellesley','we2')
+    main('Wellesley','we3')
+    main('Weston','wsn')
+    main('Westwood','wwd')
+    main('Westwood','ww2')
+    main('Winchester','win')
+    main('Woburn','wob')
