@@ -182,7 +182,7 @@ JOIN sierra_view.item_status_property_myuser stat
 LEFT JOIN sierra_view.checkout o
   ON i.id = o.item_record_id
 
-WHERE (i.itype_code_num = '257' OR (i.itype_code_num = '5' AND i.icode1 = '200'))
+WHERE (i.itype_code_num = '256' OR (i.itype_code_num = '5' AND i.icode1 = '200'))
   AND i.item_status_code != 'a'
   AND i.icode2 = '-'
   AND i.location_code ~ '^we'

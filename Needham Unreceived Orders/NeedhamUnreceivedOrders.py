@@ -73,6 +73,7 @@ def excel_writer(query_results, excel_file):
     worksheet.set_column(3,3,14.14)
     worksheet.set_column(4,4,17.14)
     worksheet.set_column(5,5,14.57)
+    worksheet.set_column(6,6,17.67)
 
     # Inserting a header
     worksheet.set_header('Needham Unreceived Orders')
@@ -84,6 +85,7 @@ def excel_writer(query_results, excel_file):
     worksheet.write(0,3,'Order Number', eformatlabel)
     worksheet.write(0,4,'Order Status Code', eformatlabel)
     worksheet.write(0,5,'Received Date', eformatlabel)
+    worksheet.write(0,6,'Order Creation Date', eformatlabel)
 
 
     # Writing the report for staff to the Excel worksheet
@@ -94,6 +96,7 @@ def excel_writer(query_results, excel_file):
         worksheet.write(rownum+1,3,row[3], eformat)
         worksheet.write(rownum+1,4,row[4], eformat)
         worksheet.write(rownum+1,5,row[5], dateformat)
+        worksheet.write(rownum+1,6,row[6], dateformat)
     
     workbook.close()
     return excel_file
@@ -188,7 +191,8 @@ def main():
               rmi.record_type_code||rmi.record_num||'a' AS item_number,
               rmo.record_type_code||rmo.record_num||'a' AS order_number,
               o.order_status_code,
-              o.received_date_gmt::DATE AS received_date
+              o.received_date_gmt::DATE AS received_date,
+              rmo.creation_date_gmt::DATE AS order_creation_date
 
             FROM sierra_view.bib_record_item_record_link l
             JOIN sierra_view.item_record i
