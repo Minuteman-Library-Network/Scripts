@@ -12,6 +12,7 @@ import psycopg2
 import csv
 import configparser
 import os
+import paramiko
 from datetime import datetime
 from datetime import time
 import smtplib
@@ -55,6 +56,33 @@ def run_query(query):
     conn.close()
     # return variable containing query results
     return rows
+
+
+# function to sftp a specified file
+def sftp_file(local_file, file_name, remote_path):
+    config = configparser.ConfigParser(interpolation=None)
+    config.read("C:\\Scripts\\Creds\\config.ini")
+
+   # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["shoutbomb"]["sftp_host"],
+        username=config["shoutbomb"]["sftp_user"],
+        password=config["shoutbomb"]["sftp_pw"],
+    )
+    sftp = ssh.open_sftp()
+
+    local_file = local_file
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
+
+    # close connection
+    sftp.close()
+    os.remove(local_file)
 
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
@@ -203,28 +231,40 @@ def main():
     GROUP BY 1,2,3,4,5,6,7,10,11,12
     ORDER BY patron_no
     """
-
+    # run for holds
     holds = run_query(holds_query)
-    renews = run_query(renewals_query)
-    overdues = run_query(overdues_query)
+    holds_file_name = "holds{}.txt".format(datetime.now().strftime("%Y%m%d-%H%M"))
+    holds_file = "/Scripts/Shoutbomb/Temp_Files/{}".format(holds_file_name)
+    holds_file = csv_writer(holds, holds_file)
 
-    holds_file_name = "/Scripts/Shoutbomb/Temp_Files/holds{}.txt".format(
-        datetime.now().strftime("%Y%m%d-%H%M")
-    )
+    # sftp file to Shoutbomb
+    remote_path = "/Holds"
+    sftp_file(holds_file,holds_file_name, remote_path)
+
+    # run for overdues
+    overdues = run_query(overdues_query)
+    overdues_file_name = "overdue{}.txt".format(datetime.now().strftime("%Y%m%d-%H%M"))
+    overdues_file = "/Scripts/Shoutbomb/Temp_Files/{}".format(overdues_file_name)
+    overdues_file = csv_writer(overdues, overdues_file)
+
+    # sftp file to Shoutbomb
+    remote_path = "/Overdue"
+    sftp_file(overdues_file, overdues_file_name, remote_path)
+    
+    # run for renewals
+    renewals = run_query(renewals_query)
+    renewals_file_name = "renew{}.txt".format(datetime.now().strftime("%Y%m%d-%H%M"))
+    renewals_file = "/Scripts/Shoutbomb/Temp_Files/{}".format(renewals_file_name)
+    renewals_file = csv_writer(renewals, renewals_file)
+
+    # sftp file to Shoutbomb
+    remote_path = "/Renew"
+    sftp_file(renewals_file, renewals_file_name, remote_path)
+
+    renews = run_query(renewals_query)
     renews_file_name = "/Scripts/Shoutbomb/Temp_Files/renew{}.txt".format(
         datetime.now().strftime("%Y%m%d-%H%M")
     )
-    overdues_file_name = "/Scripts/Shoutbomb/Temp_Files/overdue{}.txt".format(
-        datetime.now().strftime("%Y%m%d-%H%M")
-    )
-
-    csv_writer(holds, holds_file_name)
-    csv_writer(renews, renews_file_name)
-    csv_writer(overdues, overdues_file_name)
-
-    # shoutbomb's ftp site uses implict TLS for FTP, which the pysftp library does not natively support
-    # as an alternative am calling a winscp script to handle the file upload
-    os.system("c:\\Scripts\\Shoutbomb\\ftp_all.bat")
 
 
 # run main function and send error email to admin of script encounters an error

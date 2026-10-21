@@ -12,6 +12,7 @@ import psycopg2
 import csv
 import configparser
 import os
+import paramiko
 from datetime import datetime
 from datetime import time
 import smtplib
@@ -56,6 +57,32 @@ def run_query(query):
     # return variable containing query results
     return rows
 
+
+# function to sftp a specified file
+def sftp_file(local_file, file_name, remote_path):
+    config = configparser.ConfigParser(interpolation=None)
+    config.read("C:\\Scripts\\Creds\\config.ini")
+
+   # establish ssh client
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+
+    # connect to sftp server
+    ssh.connect(
+        hostname=config["shoutbomb"]["sftp_host"],
+        username=config["shoutbomb"]["sftp_user"],
+        password=config["shoutbomb"]["sftp_pw"],
+    )
+    sftp = ssh.open_sftp()
+
+    local_file = local_file
+    remote_path_to_file = remote_path + "/{}".format(file_name)
+    sftp.put(local_file, remote_path_to_file)
+
+    # close connection
+    sftp.close()
+    os.remove(local_file)
 
 # function constructs and sends outgoing email given a subject, a recipient and body text in both txt and html forms
 def send_email_error(subject, message, recipient):
@@ -126,15 +153,13 @@ def main():
 
     holds = run_query(holds_query)
 
-    holds_file_name = "/Scripts/Shoutbomb/Temp_Files/holds{}.txt".format(
-        datetime.now().strftime("%Y%m%d-%H%M")
-    )
+    holds_file_name = "holds{}.txt".format(datetime.now().strftime("%Y%m%d-%H%M"))
+    holds_file = "/Scripts/Shoutbomb/Temp_Files/{}".format(holds_file_name)
+    holds_file = csv_writer(holds, holds_file)
 
-    csv_writer(holds, holds_file_name)
-
-    # shoutbomb's ftp site uses implict TLS for FTP, which the pysftp library does not natively support
-    # as an alternative am calling a winscp script to handle the file upload
-    os.system("c:\\Scripts\\Shoutbomb\\ftp_holds.bat")
+    # sftp file to Shoutbomb
+    remote_path = "/Holds"
+    sftp_file(holds_file,holds_file_name, remote_path)
 
 
 # run main function and send error email to admin of script encounters an error
