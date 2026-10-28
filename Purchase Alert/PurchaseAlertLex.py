@@ -724,18 +724,13 @@ SELECT * FROM (
   SELECT
 	id2reckey(hd.bib_id)||'a' AS RecordNumber,
 	brp.best_title AS Title, 
-	brp.best_author AS Author, 
-   --publish_year logic from Rebecca King, Thousand Oaks Library
-   CASE
-     -- valid 4-digit year
-	  WHEN brp.publish_year BETWEEN 1000 AND 2099 THEN brp.publish_year
-     -- possible corrupted YYYYMMDD → try first 2 digits as year
-	  WHEN brp.publish_year BETWEEN 10000000 AND 99999999 THEN LEFT(brp.publish_year::TEXT, 4)::INTEGER
-     -- possible truncated YYMM like 2603 → interpret as 2026
-	  WHEN brp.publish_year BETWEEN 0 AND 9999 AND LENGTH(brp.publish_year::TEXT) = 4
-	    THEN 2000 + LEFT(brp.publish_year::TEXT, 2)::INTEGER
-	  ELSE NULL
-   END AS publication_year,
+	brp.best_author AS Author,
+  --account for records with the 260\264 |c entered as YYYYMMDD
+  CASE
+    WHEN pub_year.content ~ '^(1|2)\d{7}'
+      THEN LEFT(pub_year.content,4)::INT
+    ELSE brp.publish_year
+  END AS PublicationYear,
 	mp.name AS mattype,
 	hd.item_count AS TotalItemCount, 
 	MAX(hd.avail_item_count) AS AvailableItemCount,
@@ -816,6 +811,10 @@ FROM sierra_view.bib_record_property brp
 	LEFT JOIN sierra_view.control_field f
 		ON hd.bib_id = f.record_id
         AND f.control_num = 8
+  LEFT JOIN sierra_view.subfield pub_year
+    ON brp.bib_record_id = pub_year.record_id
+    AND pub_year.field_type_code = 'p'
+    AND pub_year.tag = 'c'
 
 GROUP BY 1, 2, 3, 4, 5, 6, 8, 12, 14, 15, 16, 17
 HAVING hd.local_holds > 0
@@ -833,7 +832,7 @@ ORDER BY 5,
     file_name = "LEXPurchaseAlertCustom{}.xlsx".format(date.today())
     excel_file =  "/Scripts/Purchase Alert/Temp Files/{}".format(file_name)
     excel_writer(query_results,excel_file)
-    # sftp_file(excel_file, file_name, 'Lexington')
+    sftp_file(excel_file, file_name, 'Lexington')
 
 # run main function and send error email to admin of script encounters an error
 if __name__ == "__main__":

@@ -8,17 +8,12 @@ SELECT
   id2reckey(mv.bib_id)||'a' AS bib_number,
   brp.best_title AS title, 
   brp.best_author AS author,
-  --publish_year logic from Rebecca King, Thousand Oaks Library
+  --account for records with the 260\264 |c entered as YYYYMMDD
   CASE
-    -- valid 4-digit year
-	 WHEN brp.publish_year BETWEEN 1000 AND 2099 THEN brp.publish_year
-    -- possible corrupted YYYYMMDD → try first 2 digits as year
-	 WHEN brp.publish_year BETWEEN 10000000 AND 99999999 THEN LEFT(brp.publish_year::TEXT, 4)::INTEGER
-    -- possible truncated YYMM like 2603 → interpret as 2026
-	 WHEN brp.publish_year BETWEEN 0 AND 9999 AND LENGTH(brp.publish_year::TEXT) = 4
-	   THEN 2000 + LEFT(brp.publish_year::TEXT, 2)::INTEGER
-	 ELSE NULL
-  END AS publication_year,
+    WHEN pub_year.content ~ '^(1|2)\d{7}'
+    THEN LEFT(pub_year.content,4)::INT
+      ELSE brp.publish_year
+  END AS publication_Year,
   mp.name   AS mat_type,
   mv.item_count AS total_item_count, 
   MAX(mv.avail_item_count) AS available_item_count,
@@ -97,6 +92,10 @@ JOIN (
   HAVING COUNT(DISTINCT h.id) > 0
 ) mv
   ON mv.bib_id = brp.bib_record_id
+LEFT JOIN sierra_view.subfield pub_year
+  ON brp.bib_record_id = pub_year.record_id
+  AND pub_year.field_type_code = 'p'
+  AND pub_year.tag = 'c'
   
 GROUP BY 1, 2, 3, 4, 5, 6, 8, 12, 14
 HAVING mv.local_holds >= 1

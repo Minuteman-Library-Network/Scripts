@@ -746,18 +746,13 @@ def main(library,library_code):
           SELECT
     	    id2reckey(hd.bib_id)||'a' AS RecordNumber,
     	    brp.best_title AS Title, 
-    	    brp.best_author AS Author, 
-    	    --publish_year logic from Rebecca King, Thousand Oaks Library
-            CASE
-              -- valid 4-digit year
-	          WHEN brp.publish_year BETWEEN 1000 AND 2099 THEN brp.publish_year
-              -- possible corrupted YYYYMMDD → try first 2 digits as year
-	          WHEN brp.publish_year BETWEEN 10000000 AND 99999999 THEN LEFT(brp.publish_year::TEXT, 4)::INTEGER
-              -- possible truncated YYMM like 2603 → interpret as 2026
-	          WHEN brp.publish_year BETWEEN 0 AND 9999 AND LENGTH(brp.publish_year::TEXT) = 4
-	            THEN 2000 + LEFT(brp.publish_year::TEXT, 2)::INTEGER
-	          ELSE NULL
-            END AS PublicationYear,
+    	    brp.best_author AS Author,
+    	    --account for records with the 260\264 |c entered as YYYYMMDD
+          CASE
+            WHEN pub_year.content ~ '^(1|2)\d{7}'
+              THEN LEFT(pub_year.content,4)::INT
+            ELSE brp.publish_year
+          END AS PublicationYear,
     	    bc.name AS MatType,
     	    hd.item_count AS TotalItemCount, 
     	    MAX(hd.avail_item_count) AS AvailableItemCount,
@@ -806,17 +801,21 @@ def main(library,library_code):
 
           FROM hold_data hd
           JOIN sierra_view.bib_record_property brp
-    	    ON hd.bib_id = brp.bib_record_id
+    	      ON hd.bib_id = brp.bib_record_id
           JOIN sierra_view.user_defined_bcode2_myuser bc
-    	    ON brp.material_code = bc.code
+    	      ON brp.material_code = bc.code
           LEFT JOIN sierra_view.phrase_entry d
-    	    ON hd.bib_id = d.record_id AND d.index_tag = 'd'
+    	      ON hd.bib_id = d.record_id AND d.index_tag = 'd'
             AND d.is_permuted = FALSE
           LEFT JOIN sierra_view.leader_field ml
-    	    ON hd.bib_id = ml.record_id
+    	      ON hd.bib_id = ml.record_id
           LEFT JOIN sierra_view.control_field f
-    	    ON hd.bib_id = f.record_id
+    	      ON hd.bib_id = f.record_id
             AND f.control_num = 8
+          LEFT JOIN sierra_view.subfield pub_year
+            ON brp.bib_record_id = pub_year.record_id
+            AND pub_year.field_type_code = 'p'
+            AND pub_year.tag = 'c'
 
           GROUP BY 1, 2, 3, 4, 5, 6, 8, 12, 14, 15, 16, 17
           HAVING hd.local_holds > 0
