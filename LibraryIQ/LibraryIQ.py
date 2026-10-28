@@ -88,7 +88,7 @@ def run_large_query(csv_file):
         myFile = csv.writer(tempFile, delimiter=",")
         # repeat query and csv writing until offset hits a value greater than the total number of items in system
         while offset < 6000000:
-            large_items_query = """
+            large_items_query = r"""
             SELECT
               rmi.record_type_code||rmi.record_num AS "ItemNum",
               ip.barcode,
@@ -242,8 +242,8 @@ def send_email_error(subject, message, recipient):
 
 def main():
 
-    bibs_query = """
-    SELECT
+    bibs_query = r"""
+	 SELECT
       rm.record_type_code||rm.record_num AS "BibNum",
       STRING_AGG(SUBSTRING(num.content FROM '[0-9xX]+'),';' ORDER BY num.occ_num) FILTER(WHERE num.marc_tag = '020') AS isbn,
       STRING_AGG(num.content,';' ORDER BY num.occ_num) FILTER(WHERE num.marc_tag = '022') issn,
@@ -251,17 +251,12 @@ def main():
       mp.name AS "MaterialType",
       b.best_title,
       b.best_author,
-	  --publish_year logic from Rebecca King, Thousand Oaks Library
-	  CASE
-        -- valid 4-digit year
-	    WHEN b.publish_year BETWEEN 1000 AND 2099 THEN b.publish_year
-        -- possible corrupted YYYYMMDD → try first 2 digits as year
-		WHEN b.publish_year BETWEEN 10000000 AND 99999999 THEN LEFT(b.publish_year::TEXT, 4)::INTEGER
-        -- possible truncated YYMM like 2603 → interpret as 2026
-		WHEN b.publish_year BETWEEN 0 AND 9999 AND LENGTH(b.publish_year::text) = 4
-		  THEN 2000 + LEFT(b.publish_year::text, 2)::INTEGER
-		ELSE NULL
-	  END AS publication_year,
+	   --account for records with the 260\264 |c entered as YYYYMMDD
+	   CASE
+        WHEN pub_year.content ~ '^(1|2)\d{7}'
+          THEN LEFT(pub_year.content,4)::INT
+        ELSE b.publish_year
+	   END AS publication_year,
       TRIM(TRAILING ',' FROM pub.content) AS publisher
   
     FROM sierra_view.bib_record_property b
@@ -277,6 +272,10 @@ def main():
       AND num.tag = 'a'
     JOIN sierra_view.material_property_myuser mp
       ON b.material_code = mp.code
+    LEFT JOIN sierra_view.subfield pub_year
+      ON b.bib_record_id = pub_year.record_id
+      AND pub_year.field_type_code = 'p'
+      AND pub_year.tag = 'c'
 
     --Pull full data on Fridays, delta files other days
     WHERE
@@ -288,7 +287,7 @@ def main():
     GROUP BY 1,5,6,7,8,9
     """
 
-    items_query = """
+    items_query = r"""
     SELECT
       rmi.record_type_code||rmi.record_num AS "ItemNum",
       ip.barcode,
@@ -403,7 +402,7 @@ def main():
     END
     """
 
-    circ_query = """
+    circ_query = r"""
     SELECT
       rmi.record_type_code||rmi.record_num AS "ItemNum",
       ip.barcode AS "Barcode",
@@ -444,7 +443,7 @@ def main():
       AND t.transaction_gmt::DATE > CURRENT_DATE - INTERVAL '4 days'
     """
 
-    fulfilled_holds_query = """
+    fulfilled_holds_query = r"""
     SELECT
       rm.record_type_code||rm.record_num AS "bibliographicRecordID",
       t.id AS "holdID",
@@ -472,7 +471,7 @@ def main():
     ORDER BY t.transaction_gmt
     """
 
-    requested_holds_query = """
+    requested_holds_query = r"""
     SELECT
       rm.record_type_code||rm.record_num AS "bibliographicRecordID",
       t.id AS "holdID",
@@ -505,7 +504,7 @@ def main():
     ORDER BY t.transaction_gmt
     """
 
-    unfilled_holds_query = """
+    unfilled_holds_query = r"""
     SELECT
       DISTINCT h.id AS "holdID",
       rm.record_type_code||rm.record_num AS "bibliographicRecordID",
@@ -587,7 +586,7 @@ def main():
       AND bp.material_code NOT IN ('b','y','s','h','w','l')
     """
 
-    on_order_query = """
+    on_order_query = r"""
     --breaking out copy calculation to sub query to avoid one-to-many join errors
     WITH copies_ordered AS (
       SELECT
@@ -665,8 +664,6 @@ def main():
     bibs_file = "/Scripts/LibraryIQ/Temp Files/{}".format(bibs_file_name)
     items_file_name = "Items_{}.csv".format(date.today().strftime("%Y%m%d"))
     items_file = "/Scripts/LibraryIQ/Temp Files/{}".format(items_file_name)
-    holds_file_name = "Holds_{}.csv".format(date.today().strftime("%Y%m%d"))
-    holds_file = "/Scripts/LibraryIQ/Temp Files/{}".format(holds_file_name)
     patrons_file_name = "Patrons_{}.csv".format(date.today().strftime("%Y%m%d"))
     patrons_file = "/Scripts/LibraryIQ/Temp Files/{}".format(patrons_file_name)
     circ_file_name = "Circ_{}.csv".format(date.today().strftime("%Y%m%d"))
