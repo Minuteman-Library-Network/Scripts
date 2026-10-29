@@ -257,7 +257,7 @@ def main():
           THEN LEFT(pub_year.content,4)::INT
         ELSE b.publish_year
 	   END AS publication_year,
-      TRIM(TRAILING ',' FROM pub.content) AS publisher
+     STRING_AGG(DISTINCT TRIM(TRAILING ',' FROM pub.content), '; ') AS publisher
   
     FROM sierra_view.bib_record_property b
     JOIN sierra_view.record_metadata rm
@@ -284,7 +284,7 @@ def main():
       ELSE rm.record_last_updated_gmt::DATE = CURRENT_DATE - INTERVAL '1 day'
     END
 
-    GROUP BY 1,5,6,7,8,9
+    GROUP BY 1,5,6,7,8
     """
 
     items_query = r"""
