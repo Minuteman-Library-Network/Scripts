@@ -212,7 +212,7 @@ def main(library,libcode):
 
         query_results = run_query(query)
         # Name of Excel File
-        file_name = "{}OldLostandPaid{}.xlsx".format(libcode),date.today().replace(day=1).strftime("%b%Y"))
+        file_name = "{}OldLostandPaid{}.xlsx".format(libcode,date.today().replace(day=1).strftime("%b%Y"))
         excel_file =  "/Scripts/Old Lost and Paid/Temp Files/{}".format(file_name)
         excel_writer(query_results,excel_file)
         sftp_file(excel_file, file_name, library)
